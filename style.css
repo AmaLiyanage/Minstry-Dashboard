@@ -1,0 +1,121 @@
+/* --- 1. GLOBAL BACKGROUND FIX --- */
+html {
+    min-height: 100% !important;
+    background: 
+        radial-gradient(circle at 0% 0%, rgba(109, 74, 255, 0.18), transparent 28%),
+        radial-gradient(circle at 100% 0%, rgba(7, 182, 176, 0.18), transparent 26%),
+        radial-gradient(circle at 100% 100%, rgba(255, 138, 61, 0.18), transparent 28%),
+        linear-gradient(180deg, #eef7ff 0%, #f4faff 44%, #eef4ff 100%) !important;
+    background-attachment: fixed !important;
+}
+
+body {
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 100vh !important;
+    font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+    color: #142033;
+    background: transparent !important; /* Force body to be transparent */
+}
+
+/* --- 2. LAYOUT & SIDEBAR FIX --- */
+.container {
+    display: flex !important;
+    min-height: 100vh !important;
+    background: transparent !important;
+}
+
+.sidebar {
+    width: 220px !important; /* Reduced from 260px */
+    background: rgba(30, 58, 95, 0.96) !important; 
+    backdrop-filter: blur(10px) !important; /* Glass effect */
+    padding: 20px 8px !important; /* Slightly reduced horizontal padding */
+    flex-shrink: 0 !important;
+    min-height: 100vh !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.sidebar a {
+    display: flex !important;
+    align-items: center !important;
+    color: rgba(255, 255, 255, 0.8) !important;
+    padding: 12px 10px !important; /* Reduced padding to fit more text */
+    font-size: 13px !important; /* Slightly smaller font for better fit */
+    text-decoration: none !important;
+    font-weight: 600 !important;
+    border-radius: 10px !important;
+    margin-bottom: 5px !important;
+    white-space: nowrap !important; /* STOPS TEXT WRAPPING */
+    transition: all 0.2s ease;
+}
+
+.sidebar a i {
+    margin-right: 8px !important; /* Reduced gap between icon and text */
+    width: 18px !important;
+    text-align: center !important;
+}
+
+.sidebar a.active {
+    background: #ffffff !important;
+    color: #1e3a5f !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* --- 3. CONTENT AREA FIX --- */
+.content {
+    flex: 1 !important;
+    padding: 25px !important;
+    background: transparent !important; /* Allow background glow to show */
+    min-width: 0; /* Prevents content from pushing sidebar out */
+}
+
+/* --- 4. PRESERVED ORIGINAL STYLES --- */
+.header {
+    background: #1e3a5f;
+    color: white;
+    padding: 15px;
+    font-size: 18px;
+    text-align: center;
+    font-weight: 700;
+}
+
+.cards {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+}
+
+.card {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    width: 220px;
+    box-shadow: 0 4px 15px rgba(22, 32, 51, 0.08);
+}
+
+table, .report-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: white;
+    margin-bottom: 30px;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #d8e2ef;
+}
+
+th {
+    background: #1e3a5f;
+    color: white;
+    padding: 12px 15px;
+}
+
+.chart-container {
+    background: white;
+    padding: 20px;
+    border-radius: 16px;
+    width: 100%;
+    height: 350px;
+    margin-bottom: 30px;
+}
