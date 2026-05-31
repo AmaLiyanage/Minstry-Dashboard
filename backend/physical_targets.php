@@ -59,8 +59,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['create_physical'])) {
     |--------------------------------------------------------------------------
     */
 
-    $cumulative_progress =
-        $progress_31_12_25 + $overall_target;
+    $cumulative_progress = $progress_31_12_25 + $overall_target;
+    $actual_physical_progress = $overall_target;
 
     /*
     |--------------------------------------------------------------------------
@@ -75,23 +75,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['create_physical'])) {
             quarter,
             overall_physical_target,
             progress_31_12_25,
+            actual_physical_progress,
             descriptive_target,
             descriptive_progress,
             cumulative_progress
 
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ";
 
     $stmt = mysqli_prepare($conn,$sql);
 
     mysqli_stmt_bind_param(
         $stmt,
-        "isddssd",
+        "isdddssd",
 
         $project_id,
         $quarter,
         $overall_target,
         $progress_31_12_25,
+        $actual_physical_progress,
         $descriptive_target,
         $descriptive_progress,
         $cumulative_progress
@@ -129,8 +131,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_physical'])) {
     $descriptive_progress =
         $_POST['descriptive_progress'];
 
-    $cumulative_progress =
-        $progress_31_12_25 + $overall_target;
+    $cumulative_progress = $progress_31_12_25 + $overall_target;
+    $actual_physical_progress = $overall_target;
 
     $sql = "
         UPDATE physical_targets SET
@@ -138,6 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_physical'])) {
             quarter=?,
             overall_physical_target=?,
             progress_31_12_25=?,
+            actual_physical_progress=?,
             descriptive_target=?,
             descriptive_progress=?,
             cumulative_progress=?
@@ -149,11 +152,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_physical'])) {
 
     mysqli_stmt_bind_param(
         $stmt,
-        "sddssdi",
+        "sdddssdi",
 
         $quarter,
         $overall_target,
         $progress_31_12_25,
+        $actual_physical_progress,
         $descriptive_target,
         $descriptive_progress,
         $cumulative_progress,

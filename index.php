@@ -154,13 +154,19 @@ function build_nav_url($target_page, $sector, $org, $div) {
                         <span><i class="fa fa-plus-circle"></i> Add Project</span>
                     </a>
                     <a href="index.php?page=add_financial&org=JCT&sector=jct" class="nav-item level-3 add-action-item <?= ($page === 'add_financial' && $current_org === 'JCT') ? 'is-active' : '' ?>">
-                        <span><i class="fa fa-plus-circle"></i> Add Financial</span>
+                        <span><i class="fa fa-plus-circle"></i> Add Financial </span>
+                    </a>
+                    <a href="index.php?page=physical_progress&org=JCT&sector=jct" class="nav-item level-3 add-action-item <?= ($page === 'physical_progress' && $current_org === 'JCT') ? 'is-active' : '' ?>">
+                        <span><i class="fa fa-plus-circle"></i> Add Physical </span>
                     </a>
                     <a href="index.php?page=project_list&org=JCT&sector=jct" class="nav-item level-3 <?= ($page === 'project_list' && $current_org === 'JCT') ? 'is-active' : '' ?>">
                         <span><i class="fa-solid fa-table-list"></i> Project List</span>
                     </a>
                     <a href="index.php?page=project_financial&org=JCT&sector=jct" class="nav-item level-3 <?= ($page === 'project_financial' && $current_org === 'JCT') ? 'is-active' : '' ?>">
                         <span><i class="fa-solid fa-money-bill-wave"></i> Project Financials</span>
+                    </a>
+                    <a href="index.php?page=physical_progress_display&org=JCT&sector=jct" class="nav-item level-3 <?= ($page === 'physical_progress_display' && $current_org === 'JCT') ? 'is-active' : '' ?>">
+                        <span><i class="fa-solid fa-bars-progress"></i> Project Physicals</span>
                     </a>
                     <a href="index.php?page=jct&org=JCT&division=all" class="nav-item level-3 <?= get_nav_active_class('jct', 'JCT', 'All') ?>">
                         <span><i class="fa-solid fa-list"></i> Projects</span>
@@ -180,7 +186,7 @@ function build_nav_url($target_page, $sector, $org, $div) {
                 <?php else: ?>
                     <?php foreach ($sectorData['orgs'] as $org): 
                         $org_divs = get_org_divisions($data, $sectorKey, $org);
-                        $org_open = ($current_org === $org || $selectedInst === $org || (in_array($page, ['project_create', 'add_financial', 'project_list', 'project_financial']) && $current_org === $org));
+                        $org_open = ($current_org === $org || $selectedInst === $org || (in_array($page, ['project_create', 'add_financial', 'physical_progress', 'project_list', 'project_financial', 'physical_progress_display']) && $current_org === $org));
                         $pageSlug = ($org === 'MSS') ? 'mss' : $sectorKey;
                     ?>
                         <!-- LEVEL 3: INSTITUTION -->
@@ -222,6 +228,22 @@ function build_nav_url($target_page, $sector, $org, $div) {
                                 <?php endforeach; ?>
                             </div>
 
+                            <!-- 1.3. ADD PHYSICAL PROGRESS -->
+                            <div class="nav-item level-4" onclick="toggleMenu('add-phys-<?= $org ?>',this)">
+                                <span class="add-action-item"><i class="fa fa-plus-circle"></i> Add Physical</span>
+                                <i class="fa fa-chevron-down arrow"></i>
+                            </div>
+                            <div id="add-phys-<?= $org ?>" class="sub-menu">
+                                <a href="<?= build_nav_url('physical_progress', $sectorKey, $org, 'all') ?>" class="nav-item level-5 <?= get_nav_active_class('physical_progress', $org, 'All') ?>">
+                                    <i class="fa-solid fa-layer-group"></i> Institutional
+                                </a>
+                                <?php foreach ($org_divs as $div): ?>
+                                    <a href="<?= build_nav_url('physical_progress', $sectorKey, $org, $div) ?>" class="nav-item level-5 <?= get_nav_active_class('physical_progress', $org, $div) ?>">
+                                        <i class="fa-solid fa-caret-right"></i> <?= htmlspecialchars($div) ?>
+                                    </a>
+                                <?php endforeach; ?>
+                            </div>
+
                             <!-- 1.5. PROJECT LIST -->
                             <div class="nav-item level-4" onclick="toggleMenu('proj-list-<?= $org ?>',this)">
                                 <span><i class="fa-solid fa-table-list"></i> Project List</span>
@@ -249,6 +271,22 @@ function build_nav_url($target_page, $sector, $org, $div) {
                                 </a>
                                 <?php foreach ($org_divs as $div): ?>
                                     <a href="<?= build_nav_url('project_financial', $sectorKey, $org, $div) ?>" class="nav-item level-5 <?= get_nav_active_class('project_financial', $org, $div) ?>">
+                                        <i class="fa-solid fa-caret-right"></i> <?= htmlspecialchars($div) ?>
+                                    </a>
+                                <?php endforeach; ?>
+                            </div>
+
+                            <!-- 1.7. PROJECT PHYSICALS -->
+                            <div class="nav-item level-4" onclick="toggleMenu('proj-phys-<?= $org ?>',this)">
+                                <span><i class="fa-solid fa-bars-progress"></i> Project Physicals</span>
+                                <i class="fa fa-chevron-down arrow"></i>
+                            </div>
+                            <div id="proj-phys-<?= $org ?>" class="sub-menu">
+                                <a href="<?= build_nav_url('physical_progress_display', $sectorKey, $org, 'all') ?>" class="nav-item level-5 <?= get_nav_active_class('physical_progress_display', $org, 'All') ?>">
+                                    <i class="fa-solid fa-layer-group"></i> Institutional
+                                </a>
+                                <?php foreach ($org_divs as $div): ?>
+                                    <a href="<?= build_nav_url('physical_progress_display', $sectorKey, $org, $div) ?>" class="nav-item level-5 <?= get_nav_active_class('physical_progress_display', $org, $div) ?>">
                                         <i class="fa-solid fa-caret-right"></i> <?= htmlspecialchars($div) ?>
                                     </a>
                                 <?php endforeach; ?>

@@ -14,6 +14,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $progress =
         (float) $_POST['cumulative_quarterly_progress'];
 
+    $progress_percentage = 0;
+
+    if ($target > 0) {
+        $progress_percentage = ($progress / $target) * 100;
+    }
+
     $descriptive_cumulative_progress =
         $_POST['descriptive_cumulative_progress'];
 
@@ -30,23 +36,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             quarter,
             cumulative_quarterly_target,
             cumulative_quarterly_progress,
+            progress_percentage,
             descriptive_cumulative_progress,
             current_quarterly_target,
             current_quarterly_progress
 
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ";
 
     $stmt = mysqli_prepare($conn,$sql);
 
     mysqli_stmt_bind_param(
         $stmt,
-        "isddsss",
+        "isdddsss",
 
         $project_id,
         $quarter,
         $target,
         $progress,
+        $progress_percentage,
         $descriptive_cumulative_progress,
         $current_target,
         $current_progress
