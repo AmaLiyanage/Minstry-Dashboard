@@ -1,15 +1,5 @@
 <?php
-// reports.php
-$data = [];
-$candidatePaths = [ __DIR__ . '/data.php', dirname(__DIR__) . '/data.php', getcwd() . '/data.php' ];
-foreach ($candidatePaths as $path) {
-    if (is_file($path)) {
-        $loaded = include $path;
-        if (isset($data) && is_array($data) && !empty($data)) break;
-        if (is_array($loaded)) { $data = $loaded; break; }
-    }
-}
-if (!isset($data) || !is_array($data)) $data = [];
+include_once __DIR__ . '/../db.php';
 
 function h($v): string { return htmlspecialchars((string)($v ?? ''), ENT_QUOTES, 'UTF-8'); }
 function cv($v): string { return trim((string)($v ?? '')); }
@@ -32,24 +22,47 @@ if (!function_exists('sector_of')) {
 }
 
 $allProjects = [];
-// Process Sectors
-if (!empty($data['sectors']) && is_array($data['sectors'])) {
-    foreach ($data['sectors'] as $secName => $orgs) {
-        foreach ($orgs as $code => $block) {
-            foreach (($block['projects'] ?? []) as $project) {
-                $project['institution'] = $code;
-                $allProjects[] = $project;
-            }
-        }
-    }
-}
-// Process Institutions Fallback
-if (empty($allProjects) && !empty($data['institutions'])) {
-    foreach ($data['institutions'] as $code => $block) {
-        foreach (($block['projects'] ?? []) as $project) {
-            $project['institution'] = $code;
-            $allProjects[] = $project;
-        }
+$sql = "SELECT p.*, i.code AS institution_code, i.institution_name, d.division_name AS division,
+       f.cum_fin_target AS q1_fin_target,
+       f.actual_expenditure AS q1_fin_actual,
+       f.bills_in_hand AS q1_bills_in_hand,
+       qp.cumulative_quarterly_target AS q1_phys_target,
+       qp.cumulative_quarterly_progress AS q1_phys_actual,
+       qp.progress_percentage AS q1_quarterly_cum,
+       cp.cumulative_overall_target AS q1_cum_target,
+       cp.cumulative_overall_progress AS q1_cum_prog,
+       cp.physical_progress_percentage AS q1_overall_prog_final
+FROM projects p
+LEFT JOIN institutions i ON p.institution_id = i.id
+LEFT JOIN divisions d ON p.division_id = d.id
+LEFT JOIN financial_progress f ON p.id = f.project_id AND f.quarter = 'Q1'
+LEFT JOIN quarterly_physical_progress qp ON p.id = qp.project_id AND qp.quarter = 'Q1'
+LEFT JOIN cumulative_physical_status cp ON p.id = cp.project_id AND cp.quarter = 'Q1'";
+
+$result = mysqli_query($conn, $sql);
+if ($result) {
+    while ($row = mysqli_fetch_assoc($result)) {
+        $codeRaw = trim($row['institution_code'] ?: $row['institution_name'] ?? '');
+        $code = strtoupper($codeRaw);
+        if (strpos($code, 'AASL') !== false) $code = 'AASL';
+        elseif (strpos($code, 'CAASL') !== false) $code = 'CAASL';
+        elseif (strpos($code, 'SLPA') !== false) $code = 'SLPA';
+        elseif (strpos($code, 'MSS') !== false || strpos($code, 'MERCHANT') !== false) $code = 'MSS';
+        elseif (strpos($code, 'JCT') !== false) $code = 'JCT';
+        elseif (strpos($code, 'CSC') !== false) $code = 'CSC';
+        else $code = $codeRaw !== '' ? $codeRaw : 'UNKNOWN';
+        
+        $row['institution'] = $code;
+        $row['actual_exp'] = ['Q1' => $row['q1_fin_actual']];
+        $row['phys_percent'] = [
+            'Q1' => $row['q1_phys_actual'],
+            'Q1_Target' => $row['q1_phys_target'],
+            'Q1_Overall_Prog_Final' => $row['q1_overall_prog_final'],
+            'Q1_Cum_Target' => $row['q1_cum_target'],
+            'Q1_Cum_Prog' => $row['q1_cum_prog'],
+            'Q1_Quarterly_Cum' => $row['q1_quarterly_cum']
+        ];
+        $allProjects[] = $row;
     }
 }
 

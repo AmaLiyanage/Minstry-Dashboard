@@ -1,16 +1,5 @@
 <?php
-// summary.php
-if (!isset($data) || !is_array($data)) {
-    $dataPath = __DIR__ . '/data.php';
-    if (is_file($dataPath)) {
-        $loaded = include $dataPath;
-        if (is_array($loaded)) {
-            $data = $loaded;
-        }
-    }
-}
-
-$allData = $data ?? [];
+include_once __DIR__ . '/../db.php';
 
 // --- 1. CAPTURE SELECTION PARAMETERS ---
 $selectedOrg = $_GET['org'] ?? $_GET['institute'] ?? null;
@@ -36,31 +25,37 @@ function summary_first_number($value): float {
     return 0.0;
 }
 
-// --- 3. BUILD FLAT PROJECT LIST (Updated to include Ports) ---
+// --- 3. BUILD FLAT PROJECT LIST FROM DB ---
+$sql = "SELECT p.*, i.code AS _org_code, i.institution_name AS _org_name, d.division_name AS division,
+       f.cum_fin_target AS q1_fin_target,
+       f.actual_expenditure AS q1_fin_actual,
+       qp.cumulative_quarterly_target AS q1_phys_target,
+       qp.cumulative_quarterly_progress AS q1_phys_actual,
+       qp.progress_percentage AS q1_quarterly_cum,
+       cp.cumulative_overall_target AS q1_cum_target,
+       cp.cumulative_overall_progress AS q1_cum_prog,
+       cp.physical_progress_percentage AS q1_overall_prog_final
+FROM projects p
+LEFT JOIN institutions i ON p.institution_id = i.id
+LEFT JOIN divisions d ON p.division_id = d.id
+LEFT JOIN financial_progress f ON p.id = f.project_id AND f.quarter = 'Q1'
+LEFT JOIN quarterly_physical_progress qp ON p.id = qp.project_id AND qp.quarter = 'Q1'
+LEFT JOIN cumulative_physical_status cp ON p.id = cp.project_id AND cp.quarter = 'Q1'";
+
+$result = mysqli_query($conn, $sql);
 $allProjects = [];
-if (isset($allData['institutions'])) {
-    foreach ($allData['institutions'] as $orgCode => $block) {
-        foreach ($block['projects'] ?? [] as $p) {
-            $p['_org_code'] = $orgCode;
-            $allProjects[] = $p;
-        }
-    }
-}
-if (isset($allData['sectors']['aviation'])) {
-    foreach ($allData['sectors']['aviation'] as $orgCode => $block) {
-        foreach ($block['projects'] ?? [] as $p) {
-            $p['_org_code'] = $orgCode;
-            $allProjects[] = $p;
-        }
-    }
-}
-// Added Ports sector (SLPA, MSS)
-if (isset($allData['sectors']['ports'])) {
-    foreach ($allData['sectors']['ports'] as $orgCode => $block) {
-        foreach ($block['projects'] ?? [] as $p) {
-            $p['_org_code'] = $orgCode;
-            $allProjects[] = $p;
-        }
+if ($result) {
+    while ($row = mysqli_fetch_assoc($result)) {
+        $row['actual_exp'] = ['Q1' => $row['q1_fin_actual']];
+        $row['phys_percent'] = [
+            'Q1' => $row['q1_phys_actual'],
+            'Q1_Target' => $row['q1_phys_target'],
+            'Q1_Overall_Prog_Final' => $row['q1_overall_prog_final'],
+            'Q1_Cum_Target' => $row['q1_cum_target'],
+            'Q1_Cum_Prog' => $row['q1_cum_prog'],
+            'Q1_Quarterly_Cum' => $row['q1_quarterly_cum']
+        ];
+        $allProjects[] = $row;
     }
 }
 
@@ -81,8 +76,18 @@ $aviationAlloc = ['AASL' => 0.0, 'CAASL' => 0.0];
 
 // --- 5. DATA PROCESSING LOOP ---
 foreach ($allProjects as $project) {
-    $orgCode = strtoupper($project['_org_code']);
-    if ($selectedOrg && $selectedOrg !== 'all' && strcasecmp($selectedOrg, $orgCode) !== 0) continue;
+    $orgCodeRaw = strtoupper(trim($project['_org_code'] ?: $project['_org_name'] ?? ''));
+    $orgCode = $orgCodeRaw;
+    if (strpos($orgCodeRaw, 'AASL') !== false) $orgCode = 'AASL';
+    elseif (strpos($orgCodeRaw, 'CAASL') !== false) $orgCode = 'CAASL';
+    elseif (strpos($orgCodeRaw, 'SLPA') !== false) $orgCode = 'SLPA';
+    elseif (strpos($orgCodeRaw, 'MSS') !== false || strpos($orgCodeRaw, 'MERCHANT') !== false) $orgCode = 'MSS';
+    elseif (strpos($orgCodeRaw, 'JCT') !== false) $orgCode = 'JCT';
+    elseif (strpos($orgCodeRaw, 'CSC') !== false) $orgCode = 'CSC';
+    
+    if ($selectedOrg && $selectedOrg !== 'all' && strcasecmp($selectedOrg, $orgCode) !== 0) {
+        continue;
+    }
     
     $divRaw = summary_clean($project['division'] ?? '');
     $matchDiv = ($selectedDivision === 'all');

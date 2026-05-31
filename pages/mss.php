@@ -1,17 +1,5 @@
 <?php
-include 'data.php';
-
-$allData = $data ?? [];
-// Target only MSS within the ports sector
-$mssData = $allData['sectors']['ports']['MSS'] ?? [];
-$projects = [];
-
-if (isset($mssData['projects'])) {
-    foreach ($mssData['projects'] as $p) {
-        $p['institution_code'] = 'MSS';
-        $projects[] = $p;
-    }
-}
+include_once __DIR__ . '/../db.php';
 
 function e($value): string { return htmlspecialchars((string)($value ?? ''), ENT_QUOTES, 'UTF-8'); }
 
@@ -19,13 +7,46 @@ function e($value): string { return htmlspecialchars((string)($value ?? ''), ENT
 $selectedOrg = $_GET['org'] ?? 'MSS'; // Default to MSS
 $selectedDiv = $_GET['division'] ?? 'all';
 
+$sql = "SELECT p.*, i.code AS institution_code, i.institution_name, d.division_name AS division, c.category_name AS category,
+       f.cum_fin_target AS q1_fin_target,
+       f.actual_expenditure AS q1_actual_exp,
+       qp.cumulative_quarterly_target AS q1_phys_target,
+       qp.cumulative_quarterly_progress AS q1_phys_actual,
+       cp.cumulative_overall_target AS q1_cum_target,
+       cp.cumulative_overall_progress AS q1_cum_prog,
+       cp.physical_progress_percentage AS q1_overall_prog_final
+FROM projects p
+LEFT JOIN institutions i ON p.institution_id = i.id
+LEFT JOIN divisions d ON p.division_id = d.id
+LEFT JOIN categories c ON p.category_id = c.id
+LEFT JOIN financial_progress f ON p.id = f.project_id AND f.quarter = 'Q1'
+LEFT JOIN quarterly_physical_progress qp ON p.id = qp.project_id AND qp.quarter = 'Q1'
+LEFT JOIN cumulative_physical_status cp ON p.id = cp.project_id AND cp.quarter = 'Q1'
+WHERE UPPER(TRIM(i.code)) = 'MSS' OR UPPER(TRIM(i.institution_name)) LIKE '%MSS%' OR UPPER(TRIM(i.institution_name)) LIKE '%MERCHANT SHIPPING%'";
+
+$result = mysqli_query($conn, $sql);
+$projects = [];
+if ($result) {
+    while ($row = mysqli_fetch_assoc($result)) {
+        $row['institution_code'] = 'MSS';
+        $row['actual_exp'] = ['Q1' => $row['q1_actual_exp']];
+        $row['phys_percent'] = [
+            'Q1' => $row['q1_phys_actual'],
+            'Q1_Target' => $row['q1_phys_target'],
+            'Q1_Overall_Prog_Final' => $row['q1_overall_prog_final'],
+            'Q1_Cum_Target' => $row['q1_cum_target']
+        ];
+        $projects[] = $row;
+    }
+}
+
 $statuses = []; $categories = []; $divisions = [];
 foreach ($projects as $project) {
     $status = trim((string)($project['timeline_status'] ?? 'Unknown'));
-    $cat = trim((string)($project['category'] ?? 'N/A'));
-    $div = trim((string)($project['division'] ?? ''));
+    $cat = trim((string)($project['project_type'] ?? 'New'));
+    $div = trim((string)($project['division'] ?? 'General'));
     if ($status !== 'Unknown' && $status !== '') $statuses[$status] = true;
-    if ($cat !== 'N/A' && $cat !== '') $categories[$cat] = true;
+    if ($cat !== '') $categories[$cat] = true;
     if ($div !== '') $divisions[$div] = true;
 }
 $statuses = array_values(array_keys($statuses)); sort($statuses);
@@ -211,15 +232,24 @@ function getStatusIcon(status) {
 
 function render() {
     const filtered = DATA.filter(p => {
-        const matchSearch = p.project_name.toLowerCase().includes(filters.query.toLowerCase());
-        const matchDiv = filters.div === 'all' || p.division === filters.div;
-        const matchStat = filters.status === 'all' || p.timeline_status === filters.status;
-        const matchCat = filters.cat === 'all' || p.category === filters.cat;
+        const pName = p.project_name || '';
+        const pDiv = p.division || 'General';
+        const pStat = p.timeline_status || 'Unknown';
+        const pCat = p.project_type || 'New';
+
+        const matchSearch = pName.toLowerCase().includes(filters.query.toLowerCase());
+        const matchDiv = filters.div === 'all' || pDiv === filters.div;
+        const matchStat = filters.status === 'all' || pStat === filters.status;
+        const matchCat = filters.cat === 'all' || pCat === filters.cat;
         return matchSearch && matchDiv && matchStat && matchCat;
     });
 
     document.getElementById('mainGrid').innerHTML = filtered.length > 0 ? filtered.map(p => {
         const phys = p.phys_percent || {};
+        const pStat = p.timeline_status || 'Unknown';
+        const pCat = p.project_type || 'New';
+        const pDiv = p.division || 'General';
+        const pLoc = p.location || 'N/A';
         
         const q1Prog = (phys.Q1 || '0').toString().replace('%', '');
         const q1Tgt = (phys.Q1_Target || '0').toString().replace('%', '');
@@ -234,16 +264,16 @@ function render() {
         return `
             <div class="project-card">
                 <div class="inst-badge"><i class="fa-solid fa-anchor"></i> MSS</div>
-                <div class="st-pill ${p.timeline_status.toLowerCase().includes('delayed') ? 'st-delayed' : (p.timeline_status.toLowerCase().includes('completed') ? 'st-completed' : 'st-ontrack')}">
-                    ${getStatusIcon(p.timeline_status)} ${p.timeline_status}
+                <div class="st-pill ${pStat.toLowerCase().includes('delayed') ? 'st-delayed' : (pStat.toLowerCase().includes('completed') ? 'st-completed' : 'st-ontrack')}">
+                    ${getStatusIcon(pStat)} ${pStat}
                 </div>
 
-                <h3 class="card-title">${p.project_name}</h3>
+                <h3 class="card-title">${p.project_name || 'Untitled'}</h3>
 
                 <div class="card-meta-row">
-                    <div class="meta-tag"><i class="fa-solid fa-location-dot"></i> <b>Location:</b> ${p.location || 'N/A'}</div>
-                    <div class="meta-tag"><i class="fa-solid fa-sitemap"></i> <b>Div:</b> ${p.division}</div>
-                    <div class="meta-tag"><i class="fa-solid fa-tags"></i> <b>Type:</b> ${p.category}</div>
+                    <div class="meta-tag"><i class="fa-solid fa-location-dot"></i> <b>Location:</b> ${pLoc}</div>
+                    <div class="meta-tag"><i class="fa-solid fa-sitemap"></i> <b>Div:</b> ${pDiv}</div>
+                    <div class="meta-tag"><i class="fa-solid fa-tags"></i> <b>Type:</b> ${pCat}</div>
                 </div>
 
                 <div class="main-progress-group">

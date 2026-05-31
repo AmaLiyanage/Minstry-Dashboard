@@ -1,6 +1,5 @@
 <?php
-// analytics.php
-// data.php is already included via index.php
+include_once __DIR__ . '/../db.php';
 
 // Capture filters from the sidebar URL parameters
 $filterOrg = $_GET['org'] ?? 'All';
@@ -25,34 +24,23 @@ function parseNumber($value): float {
  * Extracts and FILTERS data based on sidebar selection
  * Supports Aviation, Ports (SLPA/MSS), and any others in sectors
  */
-function buildFilteredDataset(array $data, $orgFilter, $divFilter): array {
+function buildFilteredDataset(array $allProjects, $orgFilter, $divFilter): array {
     $out = ['Ports' => [], 'Aviation' => [], 'JCT' => []];
     
-    if (isset($data['sectors'])) {
-        foreach ($data['sectors'] as $sectorKey => $orgs) {
-            foreach ($orgs as $code => $inst) {
-                // Filter by Organization
-                if ($orgFilter !== 'All' && $orgFilter !== $code) continue;
-                
-                $projects = $inst['projects'] ?? [];
-                $filteredProjects = [];
-                foreach ($projects as $p) {
-                    // Filter by Division
-                    $pDiv = trim($p['division'] ?? 'General');
-                    if ($divFilter !== 'All' && $pDiv !== $divFilter) continue;
-                    $filteredProjects[] = $p;
-                }
-
-                if (!empty($filteredProjects)) {
-                    // Determine internal display category
-                    $cat = 'Ports';
-                    if ($sectorKey === 'aviation') $cat = 'Aviation';
-                    if ($sectorKey === 'jct') $cat = 'JCT';
-                    
-                    $out[$cat][$code] = $filteredProjects;
-                }
-            }
-        }
+    foreach ($allProjects as $p) {
+        $code = trim($p['_org_code'] ?? '');
+        if ($code === '') continue;
+        
+        if ($orgFilter !== 'All' && $orgFilter !== $code) continue;
+        
+        $pDiv = trim($p['division'] ?? 'General');
+        if ($divFilter !== 'All' && $pDiv !== $divFilter) continue;
+        
+        $cat = 'Ports';
+        if (in_array(strtoupper($code), ['AASL', 'CAASL'])) $cat = 'Aviation';
+        if (strtoupper($code) === 'JCT') $cat = 'JCT';
+        
+        $out[$cat][$code][] = $p;
     }
     
     return $out;
@@ -98,7 +86,49 @@ function calculateDetailedStats(array $orgGroups): array {
     return $stats;
 }
 
-$dataset = buildFilteredDataset($data ?? [], $filterOrg, $filterDiv);
+$sql = "SELECT p.*, i.code AS _org_code, i.institution_name AS _org_name, d.division_name AS division,
+       f.cum_fin_target AS q1_fin_target,
+       f.actual_expenditure AS q1_fin_actual,
+       qp.cumulative_quarterly_target AS q1_phys_target,
+       qp.cumulative_quarterly_progress AS q1_phys_actual,
+       cp.cumulative_overall_target AS q1_cum_target,
+       cp.cumulative_overall_progress AS q1_cum_prog,
+       cp.physical_progress_percentage AS q1_overall_prog_final
+FROM projects p
+LEFT JOIN institutions i ON p.institution_id = i.id
+LEFT JOIN divisions d ON p.division_id = d.id
+LEFT JOIN financial_progress f ON p.id = f.project_id AND f.quarter = 'Q1'
+LEFT JOIN quarterly_physical_progress qp ON p.id = qp.project_id AND qp.quarter = 'Q1'
+LEFT JOIN cumulative_physical_status cp ON p.id = cp.project_id AND cp.quarter = 'Q1'";
+
+$result = mysqli_query($conn, $sql);
+$allProjects = [];
+if ($result) {
+    while ($row = mysqli_fetch_assoc($result)) {
+        $codeRaw = trim($row['_org_code'] ?: $row['_org_name'] ?? '');
+        $code = strtoupper($codeRaw);
+        if (strpos($code, 'AASL') !== false) $code = 'AASL';
+        elseif (strpos($code, 'CAASL') !== false) $code = 'CAASL';
+        elseif (strpos($code, 'SLPA') !== false) $code = 'SLPA';
+        elseif (strpos($code, 'MSS') !== false || strpos($code, 'MERCHANT') !== false) $code = 'MSS';
+        elseif (strpos($code, 'JCT') !== false) $code = 'JCT';
+        elseif (strpos($code, 'CSC') !== false) $code = 'CSC';
+        else $code = $codeRaw !== '' ? $codeRaw : 'UNKNOWN';
+        
+        $row['_org_code'] = $code;
+        $row['actual_exp'] = ['Q1' => $row['q1_fin_actual']];
+        $row['phys_percent'] = [
+            'Q1' => $row['q1_phys_actual'],
+            'Q1_Target' => $row['q1_phys_target'],
+            'Q1_Overall_Prog_Final' => $row['q1_overall_prog_final'],
+            'Q1_Cum_Target' => $row['q1_cum_target'],
+            'Q1_Cum_Prog' => $row['q1_cum_prog']
+        ];
+        $allProjects[] = $row;
+    }
+}
+
+$dataset = buildFilteredDataset($allProjects, $filterOrg, $filterDiv);
 $mergedAll = array_merge($dataset['Aviation'], $dataset['Ports'], $dataset['JCT']);
 $minStats = calculateDetailedStats($mergedAll);
 $instList = array_keys($mergedAll);

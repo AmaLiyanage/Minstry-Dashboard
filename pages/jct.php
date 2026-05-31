@@ -1,17 +1,5 @@
 <?php
-include 'data.php';
-
-$allData = $data ?? [];
-// Target only JCT within the jct sector
-$jctData = $allData['sectors']['jct']['JCT'] ?? [];
-$projects = [];
-
-if (isset($jctData['projects'])) {
-    foreach ($jctData['projects'] as $p) {
-        $p['institution_code'] = 'JCT';
-        $projects[] = $p;
-    }
-}
+include_once __DIR__ . '/../db.php';
 
 function e($value): string { return htmlspecialchars((string)($value ?? ''), ENT_QUOTES, 'UTF-8'); }
 
@@ -200,17 +188,23 @@ function getStatusIcon(status) {
 
 function render() {
     const filtered = DATA.filter(p => {
-        const matchSearch = p.project_name.toLowerCase().includes(filters.query.toLowerCase());
-        const matchStat = filters.status === 'all' || p.timeline_status === filters.status;
+        const pName = p.project_name || '';
+        const pStat = p.timeline_status || 'Unknown';
+        const pCat = p.project_type || 'New';
         
-        // Category Filter Logic
-        const matchCat = filters.cat === 'all' || p.category.toLowerCase().includes(filters.cat.toLowerCase());
+        const matchSearch = pName.toLowerCase().includes(filters.query.toLowerCase());
+        const matchStat = filters.status === 'all' || pStat === filters.status;
+        const matchCat = filters.cat === 'all' || pCat === filters.cat;
         
         return matchSearch && matchStat && matchCat;
     });
 
     document.getElementById('mainGrid').innerHTML = filtered.length > 0 ? filtered.map(p => {
         const phys = p.phys_percent || {};
+        const pStat = p.timeline_status || 'Unknown';
+        const pCat = p.project_type || 'New';
+        const pDiv = p.division || 'General';
+        const pLoc = p.location || 'N/A';
         const q1Prog = (phys.Q1 || '0').toString().replace('%', '');
         const q1Tgt = (phys.Q1_Target || '0').toString().replace('%', '');
         const finTgt = (p.q1_fin_target || '0').toString().replace('%', '');
@@ -224,16 +218,16 @@ function render() {
         return `
             <div class="project-card">
                 <div class="inst-badge"><i class="fa-solid fa-boxes-stacked"></i> JCT</div>
-                <div class="st-pill ${p.timeline_status.toLowerCase().includes('delayed') ? 'st-delayed' : (p.timeline_status.toLowerCase().includes('completed') ? 'st-completed' : 'st-ontrack')}">
-                    ${getStatusIcon(p.timeline_status)} ${p.timeline_status}
+                <div class="st-pill ${pStat.toLowerCase().includes('delayed') ? 'st-delayed' : (pStat.toLowerCase().includes('completed') ? 'st-completed' : 'st-ontrack')}">
+                    ${getStatusIcon(pStat)} ${pStat}
                 </div>
 
-                <h3 class="card-title">${p.project_name}</h3>
+                <h3 class="card-title">${p.project_name || 'Untitled'}</h3>
 
                 <div class="card-meta-row">
-                    <div class="meta-tag"><i class="fa-solid fa-location-dot"></i> <b>Location:</b> ${p.location || 'N/A'}</div>
-                    <div class="meta-tag"><i class="fa-solid fa-sitemap"></i> <b>Div:</b> ${p.division}</div>
-                    <div class="meta-tag"><i class="fa-solid fa-tags"></i> <b>Type:</b> ${p.category}</div>
+                    <div class="meta-tag"><i class="fa-solid fa-location-dot"></i> <b>Location:</b> ${pLoc}</div>
+                    <div class="meta-tag"><i class="fa-solid fa-sitemap"></i> <b>Div:</b> ${pDiv}</div>
+                    <div class="meta-tag"><i class="fa-solid fa-tags"></i> <b>Type:</b> ${pCat}</div>
                 </div>
 
                 <div class="main-progress-group">

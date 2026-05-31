@@ -1,22 +1,31 @@
 <?php
-// data.php is already included by index.php, but keep a safe fallback
-if (!isset($data) || !is_array($data)) {
-    @include 'data.php';
+include_once __DIR__ . '/../db.php';
+
+// --- 1. DATA EXTRACTION FROM DB ---
+$sql = "SELECT p.*, i.code AS institution_code, i.institution_name, d.division_name AS division 
+        FROM projects p 
+        LEFT JOIN institutions i ON p.institution_id = i.id
+        LEFT JOIN divisions d ON p.division_id = d.id";
+$result = mysqli_query($conn, $sql);
+$allProjects = [];
+if ($result) {
+    while ($row = mysqli_fetch_assoc($result)) {
+        $allProjects[] = $row;
+    }
 }
 
-$allData = $data ?? [];
+$aaslProjects = [];
+$caaslProjects = [];
+$slpaProjects = [];
+$mssProjects = [];
 
-// --- 1. DATA EXTRACTION ---
-$aviationSectors = $allData['sectors']['aviation'] ?? [];
-$portsSectors    = $allData['sectors']['ports'] ?? []; 
-
-// Aviation Projects
-$aaslProjects  = $aviationSectors['AASL']['projects'] ?? [];
-$caaslProjects = $aviationSectors['CAASL']['projects'] ?? [];
-
-// Port Projects (SLPA & MSS)
-$slpaProjects = $portsSectors['SLPA']['projects'] ?? [];
-$mssProjects  = $portsSectors['MSS']['projects'] ?? [];
+foreach ($allProjects as $p) {
+    $inst = strtoupper(trim($p['institution_code'] ?: $p['institution_name'] ?? ''));
+    if (strpos($inst, 'AASL') !== false) $aaslProjects[] = $p;
+    elseif (strpos($inst, 'CAASL') !== false) $caaslProjects[] = $p;
+    elseif (strpos($inst, 'SLPA') !== false) $slpaProjects[] = $p;
+    elseif (strpos($inst, 'MSS') !== false || strpos($inst, 'MERCHANT') !== false) $mssProjects[] = $p;
+}
 
 $totalSlpa  = count($slpaProjects);
 $totalMss   = count($mssProjects);
