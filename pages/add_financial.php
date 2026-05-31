@@ -71,7 +71,8 @@ if ($project_id > 0) {
     $project = mysqli_fetch_assoc($project_result);
 } else {
     // Fetch projects for the selected organization to populate dropdown
-    $sql = "SELECT p.id, p.project_name, p.project_code 
+    $sql = "SELECT p.id, p.project_name, p.project_code,
+                   EXISTS(SELECT 1 FROM financial_progress WHERE project_id = p.id) as is_added
             FROM projects p
             LEFT JOIN institutions i ON p.institution_id = i.id
             LEFT JOIN divisions d ON p.division_id = d.id";
@@ -224,8 +225,8 @@ if ($project_id > 0) {
                     <select name="project_id" required>
                         <option value="">-- Choose a Project --</option>
                         <?php foreach ($projects_list as $p): ?>
-                            <option value="<?= $p['id'] ?>">
-                                <?= htmlspecialchars($p['project_code'] ? $p['project_code'] . ' - ' : '') ?><?= htmlspecialchars($p['project_name']) ?>
+                            <option value="<?= $p['id'] ?>" <?= !empty($p['is_added']) ? 'disabled style="color: #94a3b8; background: #f1f5f9;"' : '' ?>>
+                                <?= htmlspecialchars($p['project_code'] ? $p['project_code'] . ' - ' : '') ?><?= htmlspecialchars($p['project_name']) ?><?= !empty($p['is_added']) ? ' (Already Added)' : '' ?>
                             </option>
                         <?php endforeach; ?>
                     </select>

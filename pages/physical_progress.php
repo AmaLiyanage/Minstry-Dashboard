@@ -150,7 +150,11 @@ if ($project_id > 0) {
     $project_result = mysqli_query($conn, $project_sql);
     $project = mysqli_fetch_assoc($project_result);
 } else {
-    $sql = "SELECT p.id, p.project_name, p.project_code 
+    $sql = "SELECT p.id, p.project_name, p.project_code,
+                   EXISTS(SELECT 1 FROM physical_targets WHERE project_id = p.id) as has_physical,
+                   EXISTS(SELECT 1 FROM quarterly_physical_progress WHERE project_id = p.id) as has_quarterly,
+                   EXISTS(SELECT 1 FROM cumulative_physical_status WHERE project_id = p.id) as has_cumulative,
+                   EXISTS(SELECT 1 FROM funding WHERE project_id = p.id) as has_funding
             FROM projects p
             LEFT JOIN institutions i ON p.institution_id = i.id
             LEFT JOIN divisions d ON p.division_id = d.id";
@@ -398,8 +402,8 @@ if ($project_id > 0) {
                             <select name="project_id" required>
                                 <option value="">-- Choose a Project --</option>
                                 <?php foreach ($projects_list as $p): ?>
-                                    <option value="<?= $p['id'] ?>">
-                                        <?= htmlspecialchars($p['project_code'] ? $p['project_code'] . ' - ' : '') ?><?= htmlspecialchars($p['project_name']) ?>
+                                    <option value="<?= $p['id'] ?>" <?= !empty($p['has_physical']) ? 'disabled style="color: #94a3b8; background: #f1f5f9;"' : '' ?>>
+                                        <?= htmlspecialchars($p['project_code'] ? $p['project_code'] . ' - ' : '') ?><?= htmlspecialchars($p['project_name']) ?><?= !empty($p['has_physical']) ? ' (Already Added)' : '' ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
@@ -498,8 +502,8 @@ if ($project_id > 0) {
                             <select name="project_id" required>
                                 <option value="">-- Choose a Project --</option>
                                 <?php foreach ($projects_list as $p): ?>
-                                    <option value="<?= $p['id'] ?>">
-                                        <?= htmlspecialchars($p['project_code'] ? $p['project_code'] . ' - ' : '') ?><?= htmlspecialchars($p['project_name']) ?>
+                                    <option value="<?= $p['id'] ?>" <?= !empty($p['has_quarterly']) ? 'disabled style="color: #94a3b8; background: #f1f5f9;"' : '' ?>>
+                                        <?= htmlspecialchars($p['project_code'] ? $p['project_code'] . ' - ' : '') ?><?= htmlspecialchars($p['project_name']) ?><?= !empty($p['has_quarterly']) ? ' (Already Added)' : '' ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
@@ -606,8 +610,8 @@ if ($project_id > 0) {
                             <select name="project_id" required>
                                 <option value="">-- Choose a Project --</option>
                                 <?php foreach ($projects_list as $p): ?>
-                                    <option value="<?= $p['id'] ?>">
-                                        <?= htmlspecialchars($p['project_code'] ? $p['project_code'] . ' - ' : '') ?><?= htmlspecialchars($p['project_name']) ?>
+                                    <option value="<?= $p['id'] ?>" <?= !empty($p['has_cumulative']) ? 'disabled style="color: #94a3b8; background: #f1f5f9;"' : '' ?>>
+                                        <?= htmlspecialchars($p['project_code'] ? $p['project_code'] . ' - ' : '') ?><?= htmlspecialchars($p['project_name']) ?><?= !empty($p['has_cumulative']) ? ' (Already Added)' : '' ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
@@ -687,8 +691,8 @@ if ($project_id > 0) {
                             <select name="project_id" required>
                                 <option value="">-- Choose a Project --</option>
                                 <?php foreach ($projects_list as $p): ?>
-                                    <option value="<?= $p['id'] ?>">
-                                        <?= htmlspecialchars($p['project_code'] ? $p['project_code'] . ' - ' : '') ?><?= htmlspecialchars($p['project_name']) ?>
+                                    <option value="<?= $p['id'] ?>" <?= !empty($p['has_funding']) ? 'disabled style="color: #94a3b8; background: #f1f5f9;"' : '' ?>>
+                                        <?= htmlspecialchars($p['project_code'] ? $p['project_code'] . ' - ' : '') ?><?= htmlspecialchars($p['project_name']) ?><?= !empty($p['has_funding']) ? ' (Already Added)' : '' ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
