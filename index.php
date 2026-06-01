@@ -1,8 +1,8 @@
 <?php
-include_once __DIR__ . '/data.php';
+include_once __DIR__ . '/db.php';
 
 // 1. Capture current URL state
-$page         = $_GET['page'] ?? 'home';
+$page         = $_GET['page'] ?? 'welcome';
 $current_org  = $_GET['org'] ?? '';
 $f_div        = $_GET['f_div'] ?? 'All';
 $division     = $_GET['division'] ?? 'all';
@@ -33,17 +33,27 @@ function get_nav_active_class($target_page, $target_org = '', $target_f_div = 'A
     return ($current_view_sig === $link_sig) ? 'is-active' : '';
 }
 
-function get_org_divisions($data, $sector, $org_code) {
+function get_org_divisions($org_code) {
+    global $conn;
     $divisions = [];
-    $org_data  = $data['sectors'][$sector][$org_code]['projects'] ?? [];
-    foreach ($org_data as $project) {
-        if (!empty($project['division'])) {
-            $divisions[] = trim($project['division']);
+    $org_code_escaped = mysqli_real_escape_string($conn, $org_code);
+    
+    $sql = "SELECT DISTINCT d.division_name 
+            FROM divisions d
+            JOIN institutions i ON d.institution_id = i.id
+            WHERE UPPER(TRIM(i.code)) = '" . strtoupper($org_code_escaped) . "' 
+               OR UPPER(TRIM(i.institution_name)) LIKE '%" . strtoupper($org_code_escaped) . "%'
+            ORDER BY d.division_name ASC";
+            
+    $result = mysqli_query($conn, $sql);
+    if ($result) {
+        while ($row = mysqli_fetch_assoc($result)) {
+            if (!empty($row['division_name'])) {
+                $divisions[] = trim($row['division_name']);
+            }
         }
     }
-    $unique = array_unique($divisions);
-    sort($unique);
-    return $unique;
+    return $divisions;
 }
 
 function build_nav_url($target_page, $sector, $org, $div) {
@@ -113,16 +123,21 @@ function build_nav_url($target_page, $sector, $org, $div) {
 <body>
 
 <div class="header">
-    <i class="fa-solid fa-layer-group" style="color:var(--highlight);margin-right:12px;"></i>
-    Ministry Projects Dashboard
+    <a href="index.php?page=welcome" style="color: inherit; text-decoration: none; display: flex; align-items: center;">
+        <i class="fa-solid fa-layer-group" style="color:var(--highlight);margin-right:12px;"></i>
+        Ministry Projects Dashboard
+    </a>
 </div>
 
 <div class="container">
 <div class="sidebar">
     <div class="sidebar-label">Main Menu</div>
+    <a href="index.php?page=welcome" class="nav-item <?= get_nav_active_class('welcome') ?>">
+        <span><i class="fa-solid fa-door-open"></i> Welcome Portal</span>
+    </a>
     <a href="index.php?page=home" class="nav-item <?= get_nav_active_class('home') ?>">
-        <span><i class="fa fa-house-chimney"></i> Overview</span>
-    </a >
+        <span><i class="fa-solid fa-earth-americas"></i> Global Dashboard</span>
+    </a>
     <a href="index.php?page=organization_structure" class="nav-item <?= get_nav_active_class('organization_structure') ?>">
         <span><i class="fa-solid fa-sitemap"></i> Organization Structure</span>
     </a>
@@ -185,7 +200,7 @@ function build_nav_url($target_page, $sector, $org, $div) {
 
                 <?php else: ?>
                     <?php foreach ($sectorData['orgs'] as $org): 
-                        $org_divs = get_org_divisions($data, $sectorKey, $org);
+                        $org_divs = get_org_divisions($org);
                         $org_open = ($current_org === $org || $selectedInst === $org || (in_array($page, ['project_create', 'add_financial', 'physical_progress', 'project_list', 'project_financial', 'physical_progress_display']) && $current_org === $org));
                         $pageSlug = ($org === 'MSS') ? 'mss' : $sectorKey;
                     ?>

@@ -1,6 +1,8 @@
 <?php
 include_once __DIR__ . '/../db.php';
 
+$filterSector = $_GET['sector'] ?? 'all';
+
 // --- 1. DATA EXTRACTION FROM DB ---
 $sql = "SELECT p.*, i.code AS institution_code, i.institution_name, d.division_name AS division 
         FROM projects p 
@@ -14,10 +16,11 @@ if ($result) {
     }
 }
 
-$aaslProjects = [];
 $caaslProjects = [];
+$aaslProjects = [];
 $slpaProjects = [];
 $mssProjects = [];
+$jctProjects = [];
 
 foreach ($allProjects as $p) {
     $inst = strtoupper(trim($p['institution_code'] ?: $p['institution_name'] ?? ''));
@@ -25,107 +28,109 @@ foreach ($allProjects as $p) {
     elseif (strpos($inst, 'AASL') !== false) $aaslProjects[] = $p;
     elseif (strpos($inst, 'SLPA') !== false) $slpaProjects[] = $p;
     elseif (strpos($inst, 'MSS') !== false || strpos($inst, 'MERCHANT') !== false) $mssProjects[] = $p;
+    elseif (strpos($inst, 'JCT') !== false) $jctProjects[] = $p;
 }
 
 $totalSlpa  = count($slpaProjects);
 $totalMss   = count($mssProjects);
 $totalAasl  = count($aaslProjects);
 $totalCaasl = count($caaslProjects);
+$totalJct   = count($jctProjects);
 
 function normalize_division_key(?string $value): string {
     return strtoupper(trim((string)$value));
 }
 
 // --- 2. PORT GROUPING (Using Aviation-Style Manual Counters) ---
-$slpaStats = [
+$slpaDivCounts = [
     'CD' => 0, 'CIVIL' => 0, 'DEV' => 0, 'EE' => 0, 'IS' => 0, 
     'LOG' => 0, 'MECH' => 0, 'NAV' => 0, 'PD' => 0, 'SEC' => 0
 ];
 
 foreach ($slpaProjects as $p) {
-    $d = normalize_division_key($p['division'] ?? '');
+    $divRaw = normalize_division_key($p['division'] ?? '');
     
-    if ($d === 'C & D' || $d === 'C&D' || strpos($d, 'C & D') !== false) $slpaStats['CD']++;
-    elseif (strpos($d, 'CIVIL') !== false) $slpaStats['CIVIL']++;
-    elseif (strpos($d, 'DEVELOPMENT') !== false && strpos($d, 'PLANNING') === false) $slpaStats['DEV']++;
-    elseif (strpos($d, 'ELECTRICAL') !== false || $d === 'EE') $slpaStats['EE']++;
-    elseif ($d === 'IS' || strpos($d, 'INFORMATION') !== false) $slpaStats['IS']++;
-    elseif (strpos($d, 'LOGISTIC') !== false) $slpaStats['LOG']++;
-    elseif (strpos($d, 'MECHANICAL') !== false || strpos($d, 'MECH') !== false) $slpaStats['MECH']++;
-    elseif (strpos($d, 'NAVIGATION') !== false) $slpaStats['NAV']++;
-    elseif (strpos($d, 'PLANNING') !== false || $d === 'P & D' || $d === 'P&D') $slpaStats['PD']++;
-    elseif (strpos($d, 'SECURITY') !== false || strpos($d, 'SEC') !== false) $slpaStats['SEC']++;
+    if ($divRaw === 'C & D' || $divRaw === 'C&D' || strpos($divRaw, 'C & D') !== false) $slpaDivCounts['CD']++;
+    elseif (strpos($divRaw, 'CIVIL') !== false) $slpaDivCounts['CIVIL']++;
+    elseif (strpos($divRaw, 'DEVELOPMENT') !== false && strpos($divRaw, 'PLANNING') === false) $slpaDivCounts['DEV']++;
+    elseif (strpos($divRaw, 'ELECTRICAL') !== false || $divRaw === 'EE') $slpaDivCounts['EE']++;
+    elseif ($divRaw === 'IS' || strpos($divRaw, 'INFORMATION') !== false) $slpaDivCounts['IS']++;
+    elseif (strpos($divRaw, 'LOGISTIC') !== false) $slpaDivCounts['LOG']++;
+    elseif (strpos($divRaw, 'MECHANICAL') !== false || strpos($divRaw, 'MECH') !== false) $slpaDivCounts['MECH']++;
+    elseif (strpos($divRaw, 'NAVIGATION') !== false) $slpaDivCounts['NAV']++;
+    elseif (strpos($divRaw, 'PLANNING') !== false || $divRaw === 'P & D' || $divRaw === 'P&D') $slpaDivCounts['PD']++;
+    elseif (strpos($divRaw, 'SECURITY') !== false || strpos($divRaw, 'SEC') !== false) $slpaDivCounts['SEC']++;
 }
 
 // Manual Display Array for SLPA (Matching Sidebar/Navbar labels)
 $slpaDisplayList = [
-    ['label' => 'C & D', 'query' => 'C & D', 'count' => $slpaStats['CD']],
-    ['label' => 'Civil Engineering', 'query' => 'Civil Engineering', 'count' => $slpaStats['CIVIL']],
-    ['label' => 'Development', 'query' => 'Development', 'count' => $slpaStats['DEV']],
-    ['label' => 'Electrical & Electronic', 'query' => 'Electrical & Electronic', 'count' => $slpaStats['EE']],
-    ['label' => 'IS', 'query' => 'IS', 'count' => $slpaStats['IS']],
-    ['label' => 'Logistics', 'query' => 'Logistics', 'count' => $slpaStats['LOG']],
-    ['label' => 'Mechanical', 'query' => 'Mechanical', 'count' => $slpaStats['MECH']],
-    ['label' => 'Navigation', 'query' => 'Navigation', 'count' => $slpaStats['NAV']],
-    ['label' => 'Planning & Development', 'query' => 'Planning & Development', 'count' => $slpaStats['PD']],
-    ['label' => 'Security', 'query' => 'Security', 'count' => $slpaStats['SEC']],
+    ['label' => 'C & D', 'query' => 'C & D', 'count' => $slpaDivCounts['CD']],
+    ['label' => 'Civil Engineering', 'query' => 'Civil Engineering', 'count' => $slpaDivCounts['CIVIL']],
+    ['label' => 'Development', 'query' => 'Development', 'count' => $slpaDivCounts['DEV']],
+    ['label' => 'Electrical & Electronic', 'query' => 'Electrical & Electronic', 'count' => $slpaDivCounts['EE']],
+    ['label' => 'IS', 'query' => 'IS', 'count' => $slpaDivCounts['IS']],
+    ['label' => 'Logistics', 'query' => 'Logistics', 'count' => $slpaDivCounts['LOG']],
+    ['label' => 'Mechanical', 'query' => 'Mechanical', 'count' => $slpaDivCounts['MECH']],
+    ['label' => 'Navigation', 'query' => 'Navigation', 'count' => $slpaDivCounts['NAV']],
+    ['label' => 'Planning & Development', 'query' => 'Planning & Development', 'count' => $slpaDivCounts['PD']],
+    ['label' => 'Security', 'query' => 'Security', 'count' => $slpaDivCounts['SEC']],
 ];
 
 // MSS Divisions
 $mssDivCounts = [];
 foreach ($mssProjects as $p) {
-    $divName = trim($p['division'] ?? 'General');
-    if ($divName === '') continue;
-    $mssDivCounts[$divName] = ($mssDivCounts[$divName] ?? 0) + 1;
+    $div = trim($p['division'] ?? 'General');
+    if ($div === '') continue;
+    $mssDivCounts[$div] = ($mssDivCounts[$div] ?? 0) + 1;
 }
 
 // --- 3. AVIATION GROUPING (Strictly Untouched) ---
-$aaslStats = [
+$aaslDivCounts = [
     'ALID' => 0, 'AM' => 0, 'CE_PD' => 0, 'CE_PROJ' => 0, 'CE_MAINT' => 0,
     'EANE' => 0, 'EE' => 0, 'HR' => 0, 'IT' => 0, 'MECH' => 0, 
     'MEHE' => 0, 'PROJ' => 0, 'SFRS' => 0, 'SLAA' => 0
 ];
 
 foreach ($aaslProjects as $p) {
-    $d = normalize_division_key($p['division'] ?? '');
-    if (strpos($d, 'AL&ID') !== false) $aaslStats['ALID']++;
-    elseif (strpos($d, 'AM') !== false) $aaslStats['AM']++;
-    elseif (strpos($d, 'CE (P&D)') !== false) $aaslStats['CE_PD']++;
-    elseif (strpos($d, 'CE (PROJECT)') !== false) $aaslStats['CE_PROJ']++;
-    elseif (strpos($d, 'CE(MAINTENANCE)') !== false) $aaslStats['CE_MAINT']++;
-    elseif (strpos($d, 'E&ANE') !== false) $aaslStats['EANE']++;
-    elseif ($d === 'EE') $aaslStats['EE']++;
-    elseif ($d === 'HR') $aaslStats['HR']++;
-    elseif ($d === 'IT') $aaslStats['IT']++;
-    elseif ($d === 'MECH') $aaslStats['MECH']++;
-    elseif ($d === 'MEHE') $aaslStats['MEHE']++;
-    elseif ($d === 'PROJECT') $aaslStats['PROJ']++;
-    elseif (strpos($d, 'S&FRS') !== false) $aaslStats['SFRS']++;
-    elseif ($d === 'SLAA') $aaslStats['SLAA']++;
+    $divRaw = normalize_division_key($p['division'] ?? '');
+    if (strpos($divRaw, 'AL&ID') !== false) $aaslDivCounts['ALID']++;
+    elseif (strpos($divRaw, 'AM') !== false) $aaslDivCounts['AM']++;
+    elseif (strpos($divRaw, 'CE (P&D)') !== false) $aaslDivCounts['CE_PD']++;
+    elseif (strpos($divRaw, 'CE (PROJECT)') !== false) $aaslDivCounts['CE_PROJ']++;
+    elseif (strpos($divRaw, 'CE(MAINTENANCE)') !== false) $aaslDivCounts['CE_MAINT']++;
+    elseif (strpos($divRaw, 'E&ANE') !== false) $aaslDivCounts['EANE']++;
+    elseif ($divRaw === 'EE') $aaslDivCounts['EE']++;
+    elseif ($divRaw === 'HR') $aaslDivCounts['HR']++;
+    elseif ($divRaw === 'IT') $aaslDivCounts['IT']++;
+    elseif ($divRaw === 'MECH') $aaslDivCounts['MECH']++;
+    elseif ($divRaw === 'MEHE') $aaslDivCounts['MEHE']++;
+    elseif ($divRaw === 'PROJECT') $aaslDivCounts['PROJ']++;
+    elseif (strpos($divRaw, 'S&FRS') !== false) $aaslDivCounts['SFRS']++;
+    elseif ($divRaw === 'SLAA') $aaslDivCounts['SLAA']++;
 }
 
 $aaslDisplay = [
-    ['label' => 'AL&ID', 'query' => 'AL&ID', 'count' => $aaslStats['ALID']],
-    ['label' => 'AM', 'query' => 'AM', 'count' => $aaslStats['AM']],
-    ['label' => 'CE (P&D)', 'query' => 'CE (P&D)', 'count' => $aaslStats['CE_PD']],
-    ['label' => 'CE (Project)', 'query' => 'CE (Project)', 'count' => $aaslStats['CE_PROJ']],
-    ['label' => 'CE(Maintenance)', 'query' => 'CE(Maintenance)', 'count' => $aaslStats['CE_MAINT']],
-    ['label' => 'E&ANE', 'query' => 'E&ANE', 'count' => $aaslStats['EANE']],
-    ['label' => 'EE', 'query' => 'EE', 'count' => $aaslStats['EE']],
-    ['label' => 'HR', 'query' => 'HR', 'count' => $aaslStats['HR']],
-    ['label' => 'IT', 'query' => 'IT', 'count' => $aaslStats['IT']],
-    ['label' => 'MECH', 'query' => 'MECH', 'count' => $aaslStats['MECH']],
-    ['label' => 'MEHE', 'query' => 'MEHE', 'count' => $aaslStats['MEHE']],
-    ['label' => 'Project', 'query' => 'Project', 'count' => $aaslStats['PROJ']],
-    ['label' => 'S&FRS', 'query' => 'S&FRS', 'count' => $aaslStats['SFRS']],
-    ['label' => 'SLAA', 'query' => 'SLAA', 'count' => $aaslStats['SLAA']],
+    ['label' => 'AL&ID', 'query' => 'AL&ID', 'count' => $aaslDivCounts['ALID']],
+    ['label' => 'AM', 'query' => 'AM', 'count' => $aaslDivCounts['AM']],
+    ['label' => 'CE (P&D)', 'query' => 'CE (P&D)', 'count' => $aaslDivCounts['CE_PD']],
+    ['label' => 'CE (Project)', 'query' => 'CE (Project)', 'count' => $aaslDivCounts['CE_PROJ']],
+    ['label' => 'CE(Maintenance)', 'query' => 'CE(Maintenance)', 'count' => $aaslDivCounts['CE_MAINT']],
+    ['label' => 'E&ANE', 'query' => 'E&ANE', 'count' => $aaslDivCounts['EANE']],
+    ['label' => 'EE', 'query' => 'EE', 'count' => $aaslDivCounts['EE']],
+    ['label' => 'HR', 'query' => 'HR', 'count' => $aaslDivCounts['HR']],
+    ['label' => 'IT', 'query' => 'IT', 'count' => $aaslDivCounts['IT']],
+    ['label' => 'MECH', 'query' => 'MECH', 'count' => $aaslDivCounts['MECH']],
+    ['label' => 'MEHE', 'query' => 'MEHE', 'count' => $aaslDivCounts['MEHE']],
+    ['label' => 'Project', 'query' => 'Project', 'count' => $aaslDivCounts['PROJ']],
+    ['label' => 'S&FRS', 'query' => 'S&FRS', 'count' => $aaslDivCounts['SFRS']],
+    ['label' => 'SLAA', 'query' => 'SLAA', 'count' => $aaslDivCounts['SLAA']],
 ];
 
 $caaslDivCounts = [];
 foreach ($caaslProjects as $p) {
-    $divName = trim($p['division'] ?? 'Other');
-    if ($divName === '') continue;
-    $caaslDivCounts[$divName] = ($caaslDivCounts[$divName] ?? 0) + 1;
+    $div = trim($p['division'] ?? 'Other');
+    if ($div === '') continue;
+    $caaslDivCounts[$div] = ($caaslDivCounts[$div] ?? 0) + 1;
 }
 ?>
 
@@ -143,13 +148,15 @@ foreach ($caaslProjects as $p) {
     .dashboard-stage {
         position: relative;
         width: 100%;
-        height: calc(100vh - 110px);
+        min-height: calc(100vh - 110px);
         display: flex;
         flex-direction: column;
-        justify-content: center;
+        justify-content: flex-start;
         align-items: center;
         background: linear-gradient(to bottom, var(--sky) 0%, #ffffff 90%);
-        overflow: hidden;
+        padding: 40px 0 140px 0;
+        box-sizing: border-box;
+        overflow-x: hidden;
     }
 
     .sky-zone {
@@ -212,48 +219,134 @@ foreach ($caaslProjects as $p) {
     @keyframes plane-sky-fly { from { left: -150px; } to { left: 110%; } }
     @keyframes fly-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 
-    .dashboard-content { position: relative; z-index: 10; width: 95%; max-width: 1280px; margin-top: -20px; }
-    .card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    /* =========================================================
+       DECREASED GRID PROFILE ARCHITECTURE
+    ============================================================ */
+    .dashboard-content { 
+        position: relative; 
+        z-index: 10; 
+        width: 96%; 
+        max-width: 1140px; /* Reduced outer grid window boundary constraint */
+        display: flex; 
+        flex-direction: column; 
+        gap: 28px; /* Tighter layout rows spacing */
+        margin: 0 auto;
+    }
 
-    .card-item {
-        background: rgba(255, 255, 255, 0.98);
-        border-radius: 12px;
-        box-shadow: 0 8px 25px rgba(0,0,0,0.05);
-        height: 460px;
-        overflow: hidden;
+    .sector-block {
+        background: rgba(255, 255, 255, 0.94);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-radius: 18px; /* Slightly tighter border arcs */
+        padding: 24px; /* Decreased internal canvas clearance space padding */
+        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        transition: transform 0.25s ease;
+    }
+
+    .sector-block:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+    }
+
+    .sector-header {
         display: flex;
-        flex-direction: column;
-        border: 1px solid #edf2f7;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 20px;
+        padding-bottom: 12px;
+        border-bottom: 2px solid #f1f5f9;
+    }
+    .sector-header i { font-size: 28px; } /* Scaled down slightly */
+    .sector-header h2 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+
+    .inst-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); /* Decreased item box width index limits */
+        gap: 18px; /* Tighter grid intersections */
     }
 
-    .card-head { padding: 15px; text-align: center; border-bottom: 1px solid #edf2f7; }
-    .card-head i { font-size: 28px; margin-bottom: 5px; display: block; }
-    .card-head h2 { margin: 0; font-size: 16px; text-transform: uppercase; color: var(--text); font-weight: 800; }
-
-    .card-body { padding: 10px; flex: 1; overflow-y: auto; scrollbar-width: thin; }
-
-    .nav-link {
-        display: flex; justify-content: space-between; align-items: center;
-        padding: 10px 14px; background: #f8fafc; border-radius: 8px;
-        text-decoration: none; color: var(--ports); font-weight: 700;
-        font-size: 13.5px; border: 1px solid #e2e8f0; margin-bottom: 10px;
+    .inst-card {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 16px 18px; /* Tighter item box clearance tracking layout padding */
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.01);
+        transition: all 0.2s ease;
+    }
+    
+    .inst-card:hover {
+        border-color: #cbd5e1;
+        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.04);
+        transform: translateY(-2px);
     }
 
-    .sub-list { list-style: none; margin: -2px 0 12px 18px; padding: 0 0 0 14px; border-left: 1px dashed #cbd5e0; }
-    .sub-item { position: relative; padding-left: 10px; margin-bottom: 6px; }
-    .sub-item::before { content: ""; position: absolute; left: -14px; top: 12px; width: 10px; height: 1px; background: #cbd5e0; }
-    .sub-link { display: flex; justify-content: space-between; gap: 10px; text-decoration: none; color: #4a5568; font-size: 12px; font-weight: 500; }
-    .sub-link:hover { color: #1e3a5f; }
-    .sub-name { display: inline-flex; align-items: center; gap: 6px; }
-    .sub-count { font-size: 11px; color: #718096; font-weight: 700; white-space: nowrap; }
+    .inst-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 14px;
+    }
+    
+    .inst-title {
+        font-size: 15px; /* Decreased text configuration */
+        font-weight: 800;
+        color: #0f172a;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: color 0.15s ease;
+    }
+    .inst-title :hover { color: #2563eb; }
 
-    .badge { color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+    .badge { color: white; padding: 2px 8px; border-radius: 8px; font-size: 10.5px; font-weight: 800; }
     .badge-ports { background: var(--ports); }
     .badge-aviation { background: var(--aviation); }
 
-    .ports-card { border-top: 5px solid var(--ports); }
-    .avia-card { border-top: 5px solid var(--aviation); }
-    .min-card { border-top: 5px solid var(--ministry); }
+    .div-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px; /* Reduced gap index space constraints */
+    }
+    
+    .div-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px; /* Reduced chip parameters thickness */
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        font-size: 12px; /* Tighter configuration text size values */
+        font-weight: 600;
+        color: #475569;
+        text-decoration: none;
+        transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .div-chip:hover {
+        background: #ffffff;
+        color: #0f172a;
+        border-color: #94a3b8;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+    }
+    
+    .div-count {
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 800;
+    }
+    
+    /* Sector-specific division count badge colors */
+    .count-ports { background: #e0f2fe; color: #0284c7; }
+    .div-chip:hover .count-ports { background: #bae6fd; color: #0369a1; }
+    
+    .count-aviation { background: #dcfce7; color: #16a34a; }
+    .div-chip:hover .count-aviation { background: #bbf7d0; color: #15803d; }
+    /* ========================================================= */
 
     .ship-container {
         position: absolute; bottom: 35px; right: 10%; width: 280px; height: 140px; z-index: 20;
@@ -285,14 +378,13 @@ foreach ($caaslProjects as $p) {
     @keyframes wave-move { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 
     @media (max-width: 1150px) {
-        .card-grid { grid-template-columns: 1fr; }
-        .card-item { height: auto; min-height: 280px; }
-        .dashboard-stage { height: auto; min-height: calc(100vh - 110px); padding: 60px 0 100px; }
+        .inst-grid { grid-template-columns: 1fr; }
         .ship-container { display: none; }
     }
 </style>
 
 <div class="dashboard-stage">
+    <?php if ($filterSector === 'all' || $filterSector === 'aviation'): ?>
     <div class="sky-zone">
         <div class="sun-glow"></div>
         <div class="cloud-group c1"><div class="cloud-part p1"></div><div class="cloud-part p2"></div><div class="cloud-base" style="width: 120px; height: 35px;"></div></div>
@@ -307,95 +399,136 @@ foreach ($caaslProjects as $p) {
             <div class="wing-bottom"></div>
         </div>
     </div>
+    <?php endif; ?>
 
+    <?php if ($filterSector === 'all' || $filterSector === 'ports'): ?>
     <div class="ship-container">
         <div class="funnel f1"></div><div class="funnel f2"></div>
         <div class="ship-cabin"></div><div class="ship-hull"></div>
     </div>
+    <?php endif; ?>
 
     <div class="dashboard-content">
-        <div class="card-grid">
+        <?php if ($filterSector !== 'all'): ?>
+            <div style="text-align: center; margin-bottom: 12px;">
+                <a href="index.php?page=welcome" style="display: inline-block; padding: 8px 20px; background: #ffffff; color: #1e3a5f; font-weight: 800; border-radius: 50px; text-decoration: none; box-shadow: 0 4px 12px rgba(0,0,0,0.08); font-size: 13px; transition: transform 0.2s;"><i class="fa-solid fa-arrow-left"></i> Back to Welcome Portal</a>
+            </div>
+        <?php endif; ?>
             
-            <div class="card-item ports-card">
-                <div class="card-head"><i class="fa fa-ship" style="color:var(--ports)"></i><h2>Ports</h2></div>
-                <div class="card-body">
-                    <a href="index.php?page=summary&org=SLPA&division=all" class="nav-link">
-                        <span>SLPA</span><span class="badge badge-ports"><?= $totalSlpa ?></span>
-                    </a>
-                    
-                    <ul class="sub-list">
-                        <?php foreach ($slpaDisplayList as $div): if($div['count'] > 0): ?>
-                        <li class="sub-item">
-                            <a href="index.php?page=summary&org=SLPA&division=<?= urlencode($div['query']) ?>" class="sub-link">
-                                <span class="sub-name"><i class="fa fa-angle-right"></i> <?= htmlspecialchars($div['label']) ?></span>
-                                <span class="sub-count"><?= (int)$div['count'] ?></span>
-                            </a>
-                        </li>
-                        <?php endif; endforeach; ?>
-                    </ul>
+            <?php if ($filterSector === 'all' || $filterSector === 'ports'): ?>
+            <div class="sector-block" style="border-top: 5px solid var(--ports);">
+                <div class="sector-header">
+                    <i class="fa fa-ship" style="color:var(--ports)"></i>
+                    <h2 style="color:var(--ports)">Maritime & Ports</h2>
+                </div>
+                
+                <div class="inst-grid">
+                    <div class="inst-card">
+                        <div class="inst-header">
+                            <a href="index.php?page=summary&org=SLPA&division=all" class="inst-title"><i class="fa-solid fa-building"></i> SLPA</a>
+                            <span class="badge badge-ports"><?= $totalSlpa ?></span>
+                        </div>
+                        <div class="div-chips">
+                            <?php foreach ($slpaDisplayList as $div): if($div['count'] > 0): ?>
+                                <a href="index.php?page=summary&org=SLPA&division=<?= urlencode($div['query']) ?>" class="div-chip">
+                                    <?= htmlspecialchars($div['label']) ?> <span class="div-count count-ports"><?= (int)$div['count'] ?></span>
+                                </a>
+                            <?php endif; endforeach; ?>
+                        </div>
+                    </div>
 
-                    <a href="index.php?page=summary&org=MSS&division=all" class="nav-link">
-                        <span>Merchant Shipping (MSS)</span><span class="badge badge-ports"><?= $totalMss ?></span>
-                    </a>
-                    <?php if (!empty($mssDivCounts)): ?>
-                    <ul class="sub-list">
-                        <?php foreach ($mssDivCounts as $name => $count): ?>
-                        <li class="sub-item">
-                            <a href="index.php?page=summary&org=MSS&division=<?= urlencode($name) ?>" class="sub-link">
-                                <span class="sub-name"><i class="fa fa-angle-right"></i> <?= htmlspecialchars($name) ?></span>
-                                <span class="sub-count"><?= $count ?></span>
-                            </a>
-                        </li>
-                        <?php endforeach; ?>
-                    </ul>
-                    <?php endif; ?>
+                    <div class="inst-card">
+                        <div class="inst-header">
+                            <a href="index.php?page=summary&org=MSS&division=all" class="inst-title"><i class="fa-solid fa-building"></i> Merchant Shipping (MSS)</a>
+                            <span class="badge badge-ports"><?= $totalMss ?></span>
+                        </div>
+                        <div class="div-chips">
+                            <?php foreach ($mssDivCounts as $name => $count): ?>
+                                <a href="index.php?page=summary&org=MSS&division=<?= urlencode($name) ?>" class="div-chip">
+                                    <?= htmlspecialchars($name) ?> <span class="div-count count-ports"><?= $count ?></span>
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
 
-                    <a href="index.php?page=summary&org=CSC&division=all" class="nav-link">Ceylon Shipping Corporation</a>
+                    <div class="inst-card">
+                        <div class="inst-header">
+                            <a href="index.php?page=jct&org=JCT&division=all" class="inst-title"><i class="fa-solid fa-boxes-stacked"></i> JCT Terminal</a>
+                            <span class="badge badge-ports"><?= $totalJct ?></span>
+                        </div>
+                    </div>
+
+                    <div class="inst-card">
+                        <div class="inst-header">
+                            <a href="index.php?page=summary&org=CSC&division=all" class="inst-title"><i class="fa-solid fa-building"></i> Ceylon Shipping Corp (CSC)</a>
+                        </div>
+                    </div>
                 </div>
             </div>
+            <?php endif; ?>
 
-            <div class="card-item avia-card">
-                <div class="card-head"><i class="fa fa-plane" style="color:var(--aviation)"></i><h2>Aviation</h2></div>
-                <div class="card-body">
-                    <a href="index.php?page=summary&org=AASL&division=all" class="nav-link" style="color:var(--aviation)">
-                        <span>AASL</span><span class="badge badge-aviation"><?= $totalAasl ?></span>
-                    </a>
-                    <ul class="sub-list">
-                        <?php foreach ($aaslDisplay as $div): if($div['count'] > 0): ?>
-                        <li class="sub-item">
-                            <a href="index.php?page=summary&org=AASL&division=<?= urlencode($div['query']) ?>" class="sub-link" style="color:#2f855a;">
-                                <span class="sub-name"><i class="fa fa-angle-right"></i> <?= htmlspecialchars($div['label']) ?></span>
-                                <span class="sub-count"><?= (int)$div['count'] ?></span>
-                            </a>
-                        </li>
-                        <?php endif; endforeach; ?>
-                    </ul>
+            <?php if ($filterSector === 'all' || $filterSector === 'aviation'): ?>
+            <div class="sector-block" style="border-top: 5px solid var(--aviation);">
+                <div class="sector-header">
+                    <i class="fa fa-plane" style="color:var(--aviation)"></i>
+                    <h2 style="color:var(--aviation)">Aviation Sector</h2>
+                </div>
+                
+                <div class="inst-grid">
+                    <div class="inst-card">
+                        <div class="inst-header">
+                            <a href="index.php?page=summary&org=AASL&division=all" class="inst-title" style="color:var(--aviation)"><i class="fa-solid fa-plane-departure"></i> AASL</a>
+                            <span class="badge badge-aviation"><?= $totalAasl ?></span>
+                        </div>
+                        <div class="div-chips">
+                            <?php foreach ($aaslDisplay as $div): if($div['count'] > 0): ?>
+                                <a href="index.php?page=summary&org=AASL&division=<?= urlencode($div['query']) ?>" class="div-chip">
+                                    <?= htmlspecialchars($div['label']) ?> <span class="div-count count-aviation"><?= (int)$div['count'] ?></span>
+                                </a>
+                            <?php endif; endforeach; ?>
+                        </div>
+                    </div>
 
-                    <a href="index.php?page=summary&org=CAASL&division=all" class="nav-link" style="color:var(--aviation)">
-                        <span>CAASL</span><span class="badge badge-aviation"><?= $totalCaasl ?></span>
-                    </a>
-                    <ul class="sub-list">
-                        <?php foreach ($caaslDivCounts as $name => $count): ?>
-                        <li class="sub-item">
-                            <a href="index.php?page=summary&org=CAASL&division=<?= urlencode($name) ?>" class="sub-link" style="color:#2f855a;">
-                                <span class="sub-name"><i class="fa fa-angle-right"></i> <?= htmlspecialchars($name) ?></span>
-                                <span class="sub-count"><?= $count ?></span>
-                            </a>
-                        </li>
-                        <?php endforeach; ?>
-                    </ul>
+                    <div class="inst-card">
+                        <div class="inst-header">
+                            <a href="index.php?page=summary&org=CAASL&division=all" class="inst-title" style="color:var(--aviation)"><i class="fa-solid fa-plane-arrival"></i> CAASL</a>
+                            <span class="badge badge-aviation"><?= $totalCaasl ?></span>
+                        </div>
+                        <div class="div-chips">
+                            <?php foreach ($caaslDivCounts as $name => $count): ?>
+                                <a href="index.php?page=summary&org=CAASL&division=<?= urlencode($name) ?>" class="div-chip">
+                                    <?= htmlspecialchars($name) ?> <span class="div-count count-aviation"><?= $count ?></span>
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
                 </div>
             </div>
+            <?php endif; ?>
 
-            <div class="card-item min-card">
-                <div class="card-head"><i class="fa fa-landmark" style="color:var(--ministry)"></i><h2>Ministry</h2></div>
-                <div class="card-body">
-                    <a href="index.php?page=summary&org=all" class="nav-link" style="color:var(--ministry)">Global Dashboard</a>
-                    <a href="index.php?page=reports" class="nav-link" style="color:var(--ministry)">Action Plan Reports</a>
+            <?php if ($filterSector === 'all'): ?>
+            <div class="sector-block" style="border-top: 5px solid var(--ministry);">
+                <div class="sector-header">
+                    <i class="fa fa-landmark" style="color:var(--ministry)"></i>
+                    <h2 style="color:var(--ministry)">Ministry Overview</h2>
+                </div>
+                <div class="inst-grid">
+                    <div class="inst-card">
+                        <div class="inst-header">
+                            <a href="index.php?page=summary&org=all" class="inst-title" style="color:var(--ministry)"><i class="fa-solid fa-earth-americas"></i> Global Dashboard</a>
+                        </div>
+                    </div>
+                    <div class="inst-card">
+                        <div class="inst-header">
+                            <a href="index.php?page=reports" class="inst-title" style="color:var(--ministry)"><i class="fa-solid fa-file-contract"></i> Action Plan Reports</a>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
+            <?php endif; ?>
     </div>
 
+    <?php if ($filterSector === 'all' || $filterSector === 'ports'): ?>
     <div class="sea-zone"><div class="wave"></div></div>
+    <?php endif; ?>
 </div>

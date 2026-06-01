@@ -7,6 +7,39 @@ function e($value): string { return htmlspecialchars((string)($value ?? ''), ENT
 $selectedOrg = $_GET['org'] ?? 'JCT'; 
 $selectedDiv = $_GET['division'] ?? 'all';
 
+$sql = "SELECT p.*, i.code AS institution_code, i.institution_name, d.division_name AS division, c.category_name AS category,
+       f.cum_fin_target AS q1_fin_target,
+       f.actual_expenditure AS q1_actual_exp,
+       qp.cumulative_quarterly_target AS q1_phys_target,
+       qp.cumulative_quarterly_progress AS q1_phys_actual,
+       cp.cumulative_overall_target AS q1_cum_target,
+       cp.cumulative_overall_progress AS q1_cum_prog,
+       cp.physical_progress_percentage AS q1_overall_prog_final
+FROM projects p
+LEFT JOIN institutions i ON p.institution_id = i.id
+LEFT JOIN divisions d ON p.division_id = d.id
+LEFT JOIN categories c ON p.category_id = c.id
+LEFT JOIN financial_progress f ON p.id = f.project_id AND f.quarter = 'Q1'
+LEFT JOIN quarterly_physical_progress qp ON p.id = qp.project_id AND qp.quarter = 'Q1'
+LEFT JOIN cumulative_physical_status cp ON p.id = cp.project_id AND cp.quarter = 'Q1'
+WHERE UPPER(TRIM(i.code)) = 'JCT' OR UPPER(TRIM(i.institution_name)) LIKE '%JCT%'";
+
+$result = mysqli_query($conn, $sql);
+$projects = [];
+if ($result) {
+    while ($row = mysqli_fetch_assoc($result)) {
+        $row['institution_code'] = 'JCT';
+        $row['actual_exp'] = ['Q1' => $row['q1_actual_exp']];
+        $row['phys_percent'] = [
+            'Q1' => $row['q1_phys_actual'],
+            'Q1_Target' => $row['q1_phys_target'],
+            'Q1_Overall_Prog_Final' => $row['q1_overall_prog_final'],
+            'Q1_Cum_Target' => $row['q1_cum_target']
+        ];
+        $projects[] = $row;
+    }
+}
+
 $statuses = []; $divisions = [];
 // We explicitly define the 3 JCT categories as requested
 $categories = ['New', 'Continuous', 'Extension'];
