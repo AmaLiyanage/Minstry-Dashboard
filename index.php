@@ -151,25 +151,25 @@ function build_nav_url($target_page, $sector, $org, $div) {
                 
                 <?php if ($sectorKey === 'jct'): ?>
                     <a href="index.php?page=project_create&org=JCT&sector=jct" class="nav-item level-3 add-action-item <?= get_nav_active_class('project_create', 'JCT') ?>">
-                        <span><i class="fa fa-plus-circle"></i> Add Project</span>
+                        <span><i class="fa fa-plus-circle"></i> Add Project Details</span>
                     </a>
                     <a href="index.php?page=add_financial&org=JCT&sector=jct" class="nav-item level-3 add-action-item <?= ($page === 'add_financial' && $current_org === 'JCT') ? 'is-active' : '' ?>">
-                        <span><i class="fa fa-plus-circle"></i> Add Financial </span>
+                        <span><i class="fa fa-plus-circle"></i> Add Financial Details</span>
                     </a>
                     <a href="index.php?page=physical_progress&org=JCT&sector=jct" class="nav-item level-3 add-action-item <?= ($page === 'physical_progress' && $current_org === 'JCT') ? 'is-active' : '' ?>">
-                        <span><i class="fa fa-plus-circle"></i> Add Physical </span>
+                        <span><i class="fa fa-plus-circle"></i> Add Physical Details</span>
                     </a>
                     <a href="index.php?page=project_list&org=JCT&sector=jct" class="nav-item level-3 <?= ($page === 'project_list' && $current_org === 'JCT') ? 'is-active' : '' ?>">
                         <span><i class="fa-solid fa-table-list"></i> Project List</span>
                     </a>
                     <a href="index.php?page=project_financial&org=JCT&sector=jct" class="nav-item level-3 <?= ($page === 'project_financial' && $current_org === 'JCT') ? 'is-active' : '' ?>">
-                        <span><i class="fa-solid fa-money-bill-wave"></i> Project Financials</span>
+                        <span><i class="fa-solid fa-money-bill-wave"></i> Financial Details</span>
                     </a>
                     <a href="index.php?page=physical_progress_display&org=JCT&sector=jct" class="nav-item level-3 <?= ($page === 'physical_progress_display' && $current_org === 'JCT') ? 'is-active' : '' ?>">
-                        <span><i class="fa-solid fa-bars-progress"></i> Project Physicals</span>
+                        <span><i class="fa-solid fa-bars-progress"></i> Physical Details</span>
                     </a>
                     <a href="index.php?page=jct&org=JCT&division=all" class="nav-item level-3 <?= get_nav_active_class('jct', 'JCT', 'All') ?>">
-                        <span><i class="fa-solid fa-list"></i> Projects</span>
+                        <span><i class="fa-solid fa-list"></i> Summary</span>
                     </a>
                     
 
@@ -198,7 +198,7 @@ function build_nav_url($target_page, $sector, $org, $div) {
                             
                             <!-- 1. DYNAMIC ADD PROJECT LINK PER INSTITUTION -->
                             <div class="nav-item level-4" onclick="toggleMenu('add-proj-<?= $org ?>',this)">
-                                <span class="add-action-item"><i class="fa fa-plus-circle"></i> Add Project</span>
+                                <span class="add-action-item"><i class="fa fa-plus-circle"></i> Add Project Details</span>
                                 <i class="fa fa-chevron-down arrow"></i>
                             </div>
                             <div id="add-proj-<?= $org ?>" class="sub-menu">
@@ -214,7 +214,7 @@ function build_nav_url($target_page, $sector, $org, $div) {
 
                             <!-- 1.2. ADD FINANCIAL -->
                             <div class="nav-item level-4" onclick="toggleMenu('add-fin-<?= $org ?>',this)">
-                                <span class="add-action-item"><i class="fa fa-plus-circle"></i> Add Financial</span>
+                                <span class="add-action-item"><i class="fa fa-plus-circle"></i> Add Financial Details</span>
                                 <i class="fa fa-chevron-down arrow"></i>
                             </div>
                             <div id="add-fin-<?= $org ?>" class="sub-menu">
@@ -230,7 +230,7 @@ function build_nav_url($target_page, $sector, $org, $div) {
 
                             <!-- 1.3. ADD PHYSICAL PROGRESS -->
                             <div class="nav-item level-4" onclick="toggleMenu('add-phys-<?= $org ?>',this)">
-                                <span class="add-action-item"><i class="fa fa-plus-circle"></i> Add Physical</span>
+                                <span class="add-action-item"><i class="fa fa-plus-circle"></i> Add Physical Details</span>
                                 <i class="fa fa-chevron-down arrow"></i>
                             </div>
                             <div id="add-phys-<?= $org ?>" class="sub-menu">
@@ -262,7 +262,7 @@ function build_nav_url($target_page, $sector, $org, $div) {
 
                             <!-- 1.6. PROJECT FINANCIAL -->
                             <div class="nav-item level-4" onclick="toggleMenu('proj-fin-<?= $org ?>',this)">
-                                <span><i class="fa-solid fa-money-bill-wave"></i> Project Financials</span>
+                                <span><i class="fa-solid fa-money-bill-wave"></i> Financial Details</span>
                                 <i class="fa fa-chevron-down arrow"></i>
                             </div>
                             <div id="proj-fin-<?= $org ?>" class="sub-menu">
@@ -278,7 +278,7 @@ function build_nav_url($target_page, $sector, $org, $div) {
 
                             <!-- 1.7. PROJECT PHYSICALS -->
                             <div class="nav-item level-4" onclick="toggleMenu('proj-phys-<?= $org ?>',this)">
-                                <span><i class="fa-solid fa-bars-progress"></i> Project Physicals</span>
+                                <span><i class="fa-solid fa-bars-progress"></i> Physical Details</span>
                                 <i class="fa fa-chevron-down arrow"></i>
                             </div>
                             <div id="proj-phys-<?= $org ?>" class="sub-menu">
@@ -294,7 +294,7 @@ function build_nav_url($target_page, $sector, $org, $div) {
 
                             <!-- 2. STANDARD VIEW -->
                             <div class="nav-item level-4" onclick="toggleMenu('std-<?= $org ?>',this)">
-                                <span><i class="fa-solid fa-list"></i> Projects</span>
+                                <span><i class="fa-solid fa-list"></i> Summary</span>
                                 <i class="fa fa-chevron-down arrow"></i>
                             </div>
                             <div id="std-<?= $org ?>" class="sub-menu">

@@ -44,8 +44,8 @@ if ($result) {
     while ($row = mysqli_fetch_assoc($result)) {
         $codeRaw = trim($row['institution_code'] ?: $row['institution_name'] ?? '');
         $code = strtoupper($codeRaw);
-        if (strpos($code, 'AASL') !== false) $code = 'AASL';
-        elseif (strpos($code, 'CAASL') !== false) $code = 'CAASL';
+        if (strpos($code, 'CAASL') !== false) $code = 'CAASL';
+        elseif (strpos($code, 'AASL') !== false) $code = 'AASL';
         elseif (strpos($code, 'SLPA') !== false) $code = 'SLPA';
         elseif (strpos($code, 'MSS') !== false || strpos($code, 'MERCHANT') !== false) $code = 'MSS';
         elseif (strpos($code, 'JCT') !== false) $code = 'JCT';

@@ -29,8 +29,8 @@ $projects = [];
 if ($result) {
     while ($row = mysqli_fetch_assoc($result)) {
         $inst = strtoupper(trim($row['institution_code'] ?: $row['institution_name'] ?? ''));
-        if (strpos($inst, 'AASL') !== false) $row['institution_code'] = 'AASL';
-        elseif (strpos($inst, 'CAASL') !== false) $row['institution_code'] = 'CAASL';
+        if (strpos($inst, 'CAASL') !== false) $row['institution_code'] = 'CAASL';
+        elseif (strpos($inst, 'AASL') !== false) $row['institution_code'] = 'AASL';
         else $row['institution_code'] = $inst;
         
         $row['actual_exp'] = ['Q1' => $row['q1_actual_exp']];

@@ -21,8 +21,8 @@ $mssProjects = [];
 
 foreach ($allProjects as $p) {
     $inst = strtoupper(trim($p['institution_code'] ?: $p['institution_name'] ?? ''));
-    if (strpos($inst, 'AASL') !== false) $aaslProjects[] = $p;
-    elseif (strpos($inst, 'CAASL') !== false) $caaslProjects[] = $p;
+    if (strpos($inst, 'CAASL') !== false) $caaslProjects[] = $p;
+    elseif (strpos($inst, 'AASL') !== false) $aaslProjects[] = $p;
     elseif (strpos($inst, 'SLPA') !== false) $slpaProjects[] = $p;
     elseif (strpos($inst, 'MSS') !== false || strpos($inst, 'MERCHANT') !== false) $mssProjects[] = $p;
 }

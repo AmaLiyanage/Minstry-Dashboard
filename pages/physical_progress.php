@@ -2,6 +2,10 @@
 
 include_once __DIR__ . '/../db.php';
 
+$escape = static function ($value): string {
+    return htmlspecialchars((string)($value ?? ''), ENT_QUOTES, 'UTF-8');
+};
+
 $project_id = (int) ($_GET['id'] ?? 0);
 $orgCode = strtoupper(trim((string)($_GET['org'] ?? '')));
 $division = trim((string)($_GET['division'] ?? 'all'));
@@ -151,10 +155,9 @@ if ($project_id > 0) {
     $project = mysqli_fetch_assoc($project_result);
 } else {
     $sql = "SELECT p.id, p.project_name, p.project_code,
-                   EXISTS(SELECT 1 FROM physical_targets WHERE project_id = p.id) as has_physical,
-                   EXISTS(SELECT 1 FROM quarterly_physical_progress WHERE project_id = p.id) as has_quarterly,
-                   EXISTS(SELECT 1 FROM cumulative_physical_status WHERE project_id = p.id) as has_cumulative,
-                   EXISTS(SELECT 1 FROM funding WHERE project_id = p.id) as has_funding
+                   (SELECT GROUP_CONCAT(quarter) FROM physical_targets WHERE project_id = p.id) as pt_quarters,
+                   (SELECT GROUP_CONCAT(quarter) FROM quarterly_physical_progress WHERE project_id = p.id) as qp_quarters,
+                   (SELECT GROUP_CONCAT(quarter) FROM cumulative_physical_status WHERE project_id = p.id) as cs_quarters
             FROM projects p
             LEFT JOIN institutions i ON p.institution_id = i.id
             LEFT JOIN divisions d ON p.division_id = d.id";
@@ -191,598 +194,679 @@ if ($project_id > 0) {
 ?>
 
 <style>
+    /* Executive Bright Blue Gradient & Uncrowded Canvas Tokens */
+    .physical-progress-page {
+        --blue-primary: #1e40af;
+        --blue-bright-gradient: linear-gradient(135deg, #0052d4 0%, #4364f7 50%, #6fb1fc 100%);
+        --light-mesh: radial-gradient(at 0% 0%, #e0f2fe 0px, transparent 55%),
+                      radial-gradient(at 100% 100%, #e0e7ff 0px, transparent 55%),
+                      #f8fafc;
+        
+        /* Structural Functional Color Coding Rules for Inline Icons */
+        --icon-structure: #4f46e5;    /* Vivid Indigo */
+        --icon-code: #00b4d8;         /* Electric Cyan */
+        --icon-logistic: #7c3aed;     /* Deep Violet */
+        --icon-finance: #10b981;      /* Emerald Green */
+        --icon-alert: #f43f5e;        /* Rose Red */
+        
+        --text-dark: #0f172a;
+        --text-slate: #475569;
+        --text-light: #94a3b8;
+        --border-soft: #cbd5e1;
+        --input-fill: #ffffff;
+        
+        --radius-window: 24px;
+        --radius-card: 16px;
+        --radius-control: 12px;
+        
+        --shadow-window: 0 20px 25px -5px rgba(15, 23, 42, 0.03), 0 8px 10px -6px rgba(15, 23, 42, 0.02);
+        --shadow-input: inset 0 2px 4px 0 rgba(0, 0, 0, 0.01), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+        --shadow-focus: 0 0 0 4px rgba(67, 100, 247, 0.16);
 
-.page-wrapper{
-    background:#f8fafc;
-    padding:20px;
-    border-radius:12px;
-}
-
-/* =========================
-   TAB BUTTONS
-========================= */
-
-.tab-buttons{
-    display:flex;
-    flex-wrap:wrap;
-    gap:10px;
-    margin-bottom:25px;
-}
-
-.tab-btn{
-    padding:12px 20px;
-    background:#e2e8f0;
-    border:none;
-    cursor:pointer;
-    border-radius:8px;
-    font-weight:600;
-    transition:0.2s;
-}
-
-.tab-btn:hover{
-    background:#cbd5e1;
-}
-
-.tab-btn.active{
-    background:#2563eb;
-    color:white;
-}
-
-/* =========================
-   TAB CONTENT
-========================= */
-
-.tab-content{
-    display:none;
-}
-
-.tab-content.active{
-    display:block;
-}
-
-/* =========================
-   COMMON CARD
-========================= */
-
-.section-card{
-    background:#fff;
-    padding:25px;
-    border-radius:12px;
-    box-shadow:0 2px 10px rgba(0,0,0,0.06);
-}
-
-.section-title{
-    margin-bottom:20px;
-    font-size:22px;
-    font-weight:700;
-    color:#0f172a;
-}
-
-.form-grid{
-    display:grid;
-    grid-template-columns:repeat(2,1fr);
-    gap:20px;
-}
-
-.form-group{
-    display:flex;
-    flex-direction:column;
-}
-
-.form-group label{
-    margin-bottom:8px;
-    font-weight:600;
-    color:#334155;
-}
-
-.form-group input,
-.form-group select,
-.form-group textarea{
-    padding:12px;
-    border:1px solid #cbd5e1;
-    border-radius:8px;
-    font-size:14px;
-    font-family:inherit;
-}
-
-.form-group textarea{
-    resize:vertical;
-    min-height:90px;
-}
-
-.full-width{
-    grid-column:1 / -1;
-}
-
-.btn-submit{
-    background:#16a34a;
-    color:white;
-    border:none;
-    padding:12px 20px;
-    border-radius:8px;
-    cursor:pointer;
-    font-weight:bold;
-}
-
-.btn-submit:hover{
-    background:#15803d;
-}
-
-.notice {
-    padding: 12px 16px;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 600;
-    margin-bottom: 20px;
-}
-.notice.success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; }
-.notice.error { background: #fff5f5; border: 1px solid #fee2e2; color: #991b1b; }
-
-.info-box{
-    background:#eff6ff;
-    padding:14px;
-    border-left:4px solid #2563eb;
-    border-radius:8px;
-    margin-bottom:20px;
-}
-
-@media(max-width:768px){
-
-    .form-grid{
-        grid-template-columns:1fr;
+        max-width: 1220px;
+        margin: 20px auto;
+        padding: 24px;
+        font-family: "Inter", system-ui, -apple-system, sans-serif;
+        color: var(--text-slate);
+        -webkit-font-smoothing: antialiased;
     }
 
-}
+    /* Outer Wrapper with Highly Refined Light Mesh Gradient Backing */
+    .physical-progress-shell {
+        background: var(--light-mesh);
+        border: 1px solid var(--border-soft);
+        border-radius: var(--radius-window);
+        box-shadow: var(--shadow-window);
+        overflow: hidden;
+        padding: 56px;
+    }
 
+    /* Fluid Styled High-Vibrancy Gradient Header */
+    .physical-progress-header {
+        margin-bottom: 36px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 24px;
+        padding-bottom: 32px;
+        border-bottom: 2px solid var(--border-soft);
+    }
+
+    .physical-progress-title {
+        margin: 0;
+        color: var(--text-dark);
+        font-size: 26px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        background: var(--blue-bright-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .physical-progress-subtitle {
+        margin: 6px 0 0;
+        color: var(--text-slate);
+        font-size: 14.5px;
+    }
+
+    .context-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--blue-bright-gradient);
+        color: #ffffff;
+        border-radius: 999px;
+        padding: 8px 18px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        box-shadow: 0 4px 14px rgba(67, 100, 247, 0.3);
+        border: none;
+    }
+
+    /* Professional Navigation Tabs System Controls */
+    .tab-navigation-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 44px;
+        padding: 8px;
+        background: rgba(241, 245, 249, 0.7);
+        border: 1px solid var(--border-soft);
+        border-radius: var(--radius-card);
+    }
+
+    .tab-trigger {
+        padding: 12px 24px;
+        background: transparent;
+        color: var(--text-slate);
+        border: none;
+        cursor: pointer;
+        border-radius: var(--radius-control);
+        font-weight: 700;
+        font-size: 14px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s ease;
+    }
+
+    .tab-trigger:hover {
+        background: rgba(255, 255, 255, 0.6);
+        color: var(--text-dark);
+    }
+
+    .tab-trigger.active-tab {
+        background: #ffffff;
+        color: #2563eb;
+        box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05);
+    }
+
+    /* Content Area Visibilities */
+    .tab-panel {
+        display: none;
+    }
+
+    .tab-panel.active-panel {
+        display: block;
+    }
+
+    /* Frosted Panels */
+    .form-section {
+        background: rgba(255, 255, 255, 0.88);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.7);
+        border-radius: var(--radius-card);
+        padding: 40px;
+        box-shadow: var(--shadow-input);
+    }
+
+    /* Structured Section Group Subheadings */
+    .section-title {
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin: 0 0 32px 0; 
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--border-soft);
+        background: var(--blue-bright-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    /* Broad Spacing Matrix Layout */
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 36px 40px;
+    }
+
+    .form-field {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .form-field.full {
+        grid-column: 1 / -1 !important;
+    }
+
+    .form-field label {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text-dark);
+        display: flex;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .form-field label i {
+        margin-right: 8px;
+        font-size: 14px;
+        display: inline-block;
+        width: 18px;
+        text-align: center;
+    }
+
+    /* Color Assignment Layout Variables Map */
+    .icon-structure { color: var(--icon-structure) !important; }
+    .icon-code { color: var(--icon-code) !important; }
+    .icon-logistic { color: var(--icon-logistic) !important; }
+    .icon-finance { color: var(--icon-finance) !important; }
+    .icon-alert { color: var(--icon-alert) !important; }
+
+    .form-field input,
+    .form-field select,
+    .form-field textarea {
+        width: 100%;
+        min-height: 50px;
+        padding: 12px 16px; 
+        color: var(--text-dark);
+        background: var(--input-fill);
+        border: 1px solid #cbd5e1;
+        border-radius: var(--radius-control);
+        font: inherit;
+        font-size: 14px;
+        outline: none;
+        box-shadow: var(--shadow-input);
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .form-field textarea {
+        min-height: 120px;
+        padding: 16px;
+        resize: vertical;
+        line-height: 1.6;
+    }
+
+    .form-field input:focus,
+    .form-field select:focus,
+    .form-field textarea:focus {
+        border-color: #4364f7;
+        background: #ffffff;
+        box-shadow: var(--shadow-focus);
+    }
+
+    /* Context Operations Info Helpers */
+    .info-box-helper {
+        background: #f1f5f9;
+        border: 1px solid var(--border-soft);
+        color: var(--text-slate);
+        padding: 20px 24px;
+        border-radius: var(--radius-control);
+        font-size: 14.5px;
+        line-height: 1.6;
+        font-weight: 600;
+        margin-bottom: 32px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .info-box-helper strong {
+        color: var(--text-dark);
+    }
+
+    /* Notification Banners */
+    .notice {
+        padding: 16px 20px;
+        border-radius: var(--radius-control);
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 32px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .notice.success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; }
+    .notice.error { background: #fff5f5; border: 1px solid #fee2e2; color: #991b1b; }
+
+    /* Actions buttons footer styling */
+    .form-actions {
+        display: flex;
+        justify-content: flex-end;
+        padding-top: 28px;
+        border-top: 2px solid var(--border-soft);
+        margin-top: 16px;
+        gap: 16px;
+    }
+
+    .btn-primary {
+        border: none;
+        background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+        color: #ffffff;
+        min-height: 52px;
+        padding: 0 40px;
+        font-weight: 700;
+        font-size: 14px;
+        border-radius: var(--radius-control);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.3);
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .btn-primary:hover {
+        background: linear-gradient(135deg, #020617 0%, #0f172a 100%);
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.45);
+        transform: translateY(-1px);
+    }
+
+    .physical-progress-form br {
+        display: none;
+    }
+
+    /* Screen Breakdowns Grid Configurations */
+    @media (max-width: 960px) {
+        .physical-progress-shell { padding: 40px 32px; }
+    }
+
+    @media (max-width: 768px) {
+        .form-grid { grid-template-columns: 1fr !important; gap: 28px; }
+        .tab-navigation-bar { flex-direction: column; gap: 4px; padding: 4px; }
+        .tab-trigger { width: 100%; justify-content: flex-start; }
+    }
+
+    @media (max-width: 640px) {
+        .physical-progress-shell { padding: 32px 20px; }
+        .physical-progress-header { flex-direction: column; align-items: flex-start; gap: 16px; }
+        .btn-primary { width: 100%; justify-content: center; }
+    }
 </style>
 
-<div class="page-wrapper">
+<div class="physical-progress-page">
+    <div class="physical-progress-shell">
+        
+        <div class="physical-progress-header">
+            <div>
+                <h1 class="physical-progress-title">Physical Progress Entries</h1>
+                <p class="physical-progress-subtitle">Record targets, quarterly performance and funding definitions array structures.</p>
+            </div>
+            <?php if ($orgCode !== ''): ?>
+                <span class="context-chip">
+                    <i class="fa fa-building"></i>
+                    <?= $escape($orgCode) ?>
+                </span>
+            <?php endif; ?>
+        </div>
 
-    <?php if ($message !== ''): ?>
-        <div class="notice <?= htmlspecialchars($messageType) ?>"><?= htmlspecialchars($message) ?></div>
-    <?php endif; ?>
-
-    <div class="info-box">
-        <?php if ($project): ?>
-            <strong>Project:</strong>
-            <?= htmlspecialchars($project['project_code'] ? $project['project_code'] . ' - ' : '') ?><?= htmlspecialchars($project['project_name']) ?>
-        <?php else: ?>
-            <strong>Context:</strong>
-            Please select a project from the dropdowns below to record progress.
+        <?php if ($message !== ''): ?>
+            <div class="notice <?= $escape($messageType) ?>"><?= $escape($message) ?></div>
         <?php endif; ?>
-    </div>
 
-    <!-- =========================
-         TABS
-    ========================== -->
+        <div class="info-box-helper">
+            <i class="fa-solid fa-circle-info" style="color: var(--blue-primary); font-size: 16px;"></i>
+            <div>
+                <?php if ($project): ?>
+                    <strong>Project Scope Context:</strong> <?= $escape($project['project_code'] ? $project['project_code'] . ' - ' : '') ?><?= $escape($project['project_name']) ?>
+                <?php else: ?>
+                    <strong>Context Index:</strong> Please select a project from drop down.
+                <?php endif; ?>
+            </div>
+        </div>
 
-    <div class="tab-buttons">
+        <div class="tab-navigation-bar">
+            <button class="tab-trigger <?= $activeTab === 'physical' ? 'active-tab' : '' ?>" onclick="switchTab(event, 'physical_panel')">
+                <i class="fa-solid fa-bullseye icon-structure"></i> Physical Targets
+            </button>
+            <button class="tab-trigger <?= $activeTab === 'quarterly' ? 'active-tab' : '' ?>" onclick="switchTab(event, 'quarterly_panel')">
+                <i class="fa-solid fa-bars-progress icon-logistic"></i> Quarterly Progress
+            </button>
+            <button class="tab-trigger <?= $activeTab === 'cumulative' ? 'active-tab' : '' ?>" onclick="switchTab(event, 'cumulative_panel')">
+                <i class="fa-solid fa-chart-line icon-code"></i> Cumulative Status
+            </button>
+            <button class="tab-trigger <?= $activeTab === 'funding' ? 'active-tab' : '' ?>" onclick="switchTab(event, 'funding_panel')">
+                <i class="fa-solid fa-sack-dollar icon-finance"></i> Funding Parameters
+            </button>
+        </div>
 
+        <div id="physical_panel" class="tab-panel <?= $activeTab === 'physical' ? 'active-panel' : '' ?>">
+            <form class="physical-progress-form" action="" method="POST">
+                <input type="hidden" name="action_type" value="physical_targets">
+                <?php if ($project): ?><input type="hidden" name="project_id" value="<?= $project_id ?>"><?php endif; ?>
 
-        <button class="tab-btn <?= $activeTab === 'physical' ? 'active' : '' ?>" onclick="showTab(event,'physical')">
-            Physical Targets
-        </button>
+                <div class="form-section">
+                    <h2 class="section-title">Physical Targets Allocations</h2>
+                    <div class="form-grid">
 
-        <button class="tab-btn <?= $activeTab === 'quarterly' ? 'active' : '' ?>" onclick="showTab(event,'quarterly')">
-            Quarterly Progress
-        </button>
+                        <?php if (!$project): ?>
+                            <div class="form-field full">
+                                <label for="pt_project_id"><i class="fa-solid fa-folder-tree icon-code"></i> Select Project Profile</label>
+                                <select name="project_id" id="pt_project_id" required>
+                                    <option value="">-- Choose a Project Scope Map --</option>
+                                    <?php foreach ($projects_list as $p): ?>
+                                        <?php 
+                                            $added = explode(',', $p['pt_quarters'] ?? '');
+                                            $all_added = count(array_filter($added)) >= 4;
+                                        ?>
+                                        <option value="<?= $p['id'] ?>" data-quarters="<?= $escape($p['pt_quarters']) ?>" <?= $all_added ? 'disabled style="color: #94a3b8; background: #f1f5f9;"' : '' ?>>
+                                            <?= $escape($p['project_code'] ? $p['project_code'] . ' - ' : '') ?><?= $escape($p['project_name']) ?><?= $all_added ? ' (All Quarters Added)' : '' ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        <?php endif; ?>
 
-        <button class="tab-btn <?= $activeTab === 'cumulative' ? 'active' : '' ?>" onclick="showTab(event,'cumulative')">
-            Cumulative Status
-        </button>
-
-        <button class="tab-btn <?= $activeTab === 'funding' ? 'active' : '' ?>" onclick="showTab(event,'funding')">
-            Funding
-        </button>
-
-    </div>
-
-    <!-- =========================================================
-         PHYSICAL TARGETS TAB
-    ========================================================== -->
-
-    <div id="physical" class="tab-content <?= $activeTab === 'physical' ? 'active' : '' ?>">
-
-        <div class="section-card">
-
-            <h2 class="section-title">
-                Physical Targets
-            </h2>
-
-            <form action="" method="POST">
-
-                <div class="form-grid">
-                    <input type="hidden" name="action_type" value="physical_targets">
-
-                    <?php if ($project): ?>
-                        <input type="hidden" name="project_id" value="<?= $project_id ?>">
-                    <?php else: ?>
-                        <div class="form-group full-width">
-                            <label>Select Project</label>
-                            <select name="project_id" required>
-                                <option value="">-- Choose a Project --</option>
-                                <?php foreach ($projects_list as $p): ?>
-                                    <option value="<?= $p['id'] ?>" <?= !empty($p['has_physical']) ? 'disabled style="color: #94a3b8; background: #f1f5f9;"' : '' ?>>
-                                        <?= htmlspecialchars($p['project_code'] ? $p['project_code'] . ' - ' : '') ?><?= htmlspecialchars($p['project_name']) ?><?= !empty($p['has_physical']) ? ' (Already Added)' : '' ?>
-                                    </option>
-                                <?php endforeach; ?>
+                        <div class="form-field">
+                            <label for="pt_quarter"><i class="fa-regular fa-calendar-check icon-logistic"></i> Target Quarter</label>
+                            <select name="quarter" id="pt_quarter" required>
+                                <option value="">Select quadrant...</option>
+                                <option value="Q1">Q1</option><option value="Q2">Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option>
                             </select>
                         </div>
-                    <?php endif; ?>
 
-                    <div class="form-group">
-                        <label>Quarter</label>
+                        <div class="form-field">
+                            <label for="overall_physical_target"><i class="fa-solid fa-chart-pie icon-structure"></i> Overall Physical Target (%)</label>
+                            <input type="number" step="0.01" name="overall_physical_target" id="overall_physical_target" required placeholder="0.00">
+                        </div>
 
-                        <select name="quarter" required>
-                            <option value="">Select</option>
-                            <option value="Q1">Q1</option>
-                            <option value="Q2">Q2</option>
-                            <option value="Q3">Q3</option>
-                            <option value="Q4">Q4</option>
-                        </select>
+                        <div class="form-field full">
+                            <label for="progress_31_12_25"><i class="fa-solid fa-clock-rotate-left icon-finance"></i> Progress as at 31/12/2025 (%)</label>
+                            <input type="number" step="0.01" name="progress_31_12_25" id="progress_31_12_25" value="0" required>
+                        </div>
+
+                        <div class="form-field full">
+                            <label for="descriptive_target"><i class="fa-solid fa-file-signature icon-code"></i> Descriptive Target Specifications</label>
+                            <textarea name="descriptive_target" id="descriptive_target" required placeholder="Outline target specifications descriptions details..."></textarea>
+                        </div>
+
+                        <div class="form-field full">
+                            <label for="descriptive_progress"><i class="fa-solid fa-align-left icon-logistic"></i> Descriptive Progress Notes</label>
+                            <textarea name="descriptive_progress" id="descriptive_progress" required placeholder="Document actual descriptive statements updates data..."></textarea>
+                        </div>
+
                     </div>
-
-                    <div class="form-group">
-                        <label>Overall Physical Target (%)</label>
-
-                        <input
-                            type="number"
-                            step="0.01"
-                            name="overall_physical_target"
-                            required
-                        >
-                    </div>
-
-                    <div class="form-group">
-                        <label>Progress 31/12/25 (%)</label>
-
-                        <input
-                            type="number"
-                            step="0.01"
-                            name="progress_31_12_25"
-                            value="0"
-                            required
-                        >
-                    </div>
-
-                    <div class="form-group full-width">
-                        <label>Descriptive Target</label>
-
-                        <textarea
-                            name="descriptive_target"
-                            required
-                        ></textarea>
-                    </div>
-
-                    <div class="form-group full-width">
-                        <label>Descriptive Progress</label>
-
-                        <textarea
-                            name="descriptive_progress"
-                            required
-                        ></textarea>
-                    </div>
-
-                    <div class="form-group full-width">
-                        <button type="submit" class="btn-submit">
-                            Save Physical Target
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary">
+                            <i class="fa fa-save"></i> Save Physical Target
                         </button>
                     </div>
-
                 </div>
-
             </form>
+        </div>
 
+        <div id="quarterly_panel" class="tab-panel <?= $activeTab === 'quarterly' ? 'active-panel' : '' ?>">
+            <form class="physical-progress-form" action="" method="POST">
+                <input type="hidden" name="action_type" value="quarterly_progress">
+                <?php if ($project): ?><input type="hidden" name="project_id" value="<?= $project_id ?>"><?php endif; ?>
+
+                <div class="form-section">
+                    <h2 class="section-title">Quarterly Physical Progress Reports</h2>
+                    <div class="form-grid">
+
+                        <?php if (!$project): ?>
+                            <div class="form-field full">
+                                <label for="qp_project_id"><i class="fa-solid fa-folder-tree icon-code"></i> Select Project Profile</label>
+                                <select name="project_id" id="qp_project_id" required>
+                                    <option value="">-- Choose a Project Scope Map --</option>
+                                    <?php foreach ($projects_list as $p): ?>
+                                        <?php 
+                                            $added = explode(',', $p['qp_quarters'] ?? '');
+                                            $all_added = count(array_filter($added)) >= 4;
+                                        ?>
+                                        <option value="<?= $p['id'] ?>" data-quarters="<?= $escape($p['qp_quarters']) ?>" <?= $all_added ? 'disabled style="color: #94a3b8; background: #f1f5f9;"' : '' ?>>
+                                            <?= $escape($p['project_code'] ? $p['project_code'] . ' - ' : '') ?><?= $escape($p['project_name']) ?><?= $all_added ? ' (All Quarters Added)' : '' ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        <?php endif; ?>
+
+                        <div class="form-field">
+                            <label for="qp_quarter"><i class="fa-regular fa-calendar icon-logistic"></i> Target Period Quarter</label>
+                            <select name="quarter" id="qp_quarter" required>
+                                <option value="">Select operational quarter window...</option>
+                                <option value="Q1">Q1</option><option value="Q2">Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option>
+                            </select>
+                        </div>
+
+                        <div class="form-field">
+                            <label for="cumulative_quarterly_target"><i class="fa-solid fa-crosshairs icon-structure"></i> Cumulative Quarterly Target (%)</label>
+                            <input type="number" step="0.01" name="cumulative_quarterly_target" id="cumulative_quarterly_target" required placeholder="0.00">
+                        </div>
+
+                        <div class="form-field full">
+                            <label for="cumulative_quarterly_progress"><i class="fa-solid fa-chart-line icon-finance"></i> Cumulative Quarterly Progress (%)</label>
+                            <input type="number" step="0.01" name="cumulative_quarterly_progress" id="cumulative_quarterly_progress" required placeholder="0.00">
+                        </div>
+
+                        <div class="form-field full">
+                            <label for="descriptive_cumulative_progress"><i class="fa-solid fa-message icon-code"></i> Descriptive Cumulative Progress Documentation</label>
+                            <textarea name="descriptive_cumulative_progress" id="descriptive_cumulative_progress" required></textarea>
+                        </div>
+
+                        <div class="form-field full">
+                            <label for="current_quarterly_target"><i class="fa-solid fa-hourglass-start icon-logistic"></i> Current Quarterly Target Statements</label>
+                            <textarea name="current_quarterly_target" id="current_quarterly_target" required></textarea>
+                        </div>
+
+                        <div class="form-field full">
+                            <label for="current_quarterly_progress"><i class="fa-solid fa-square-poll-vertical icon-alert"></i> Current Quarterly Progress Metrics</label>
+                            <textarea name="current_quarterly_progress" id="current_quarterly_progress" required></textarea>
+                        </div>
+
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary">
+                            <i class="fa fa-save"></i> Save Quarterly Progress
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div id="cumulative_panel" class="tab-panel <?= $activeTab === 'cumulative' ? 'active-panel' : '' ?>">
+            <form class="physical-progress-form" action="" method="POST">
+                <input type="hidden" name="action_type" value="cumulative_status">
+                <?php if ($project): ?><input type="hidden" name="project_id" value="<?= $project_id ?>"><?php endif; ?>
+
+                <div class="form-section">
+                    <h2 class="section-title">Cumulative Physical Status Metrics</h2>
+                    <div class="form-grid">
+
+                        <?php if (!$project): ?>
+                            <div class="form-field full">
+                                <label for="cs_project_id"><i class="fa-solid fa-folder-tree icon-code"></i> Select Project Profile</label>
+                                <select name="project_id" id="cs_project_id" required>
+                                    <option value="">-- Choose a Project Scope Map --</option>
+                                    <?php foreach ($projects_list as $p): ?>
+                                        <?php 
+                                            $added = explode(',', $p['cs_quarters'] ?? '');
+                                            $all_added = count(array_filter($added)) >= 4;
+                                        ?>
+                                        <option value="<?= $p['id'] ?>" data-quarters="<?= $escape($p['cs_quarters']) ?>" <?= $all_added ? 'disabled style="color: #94a3b8; background: #f1f5f9;"' : '' ?>>
+                                            <?= $escape($p['project_code'] ? $p['project_code'] . ' - ' : '') ?><?= $escape($p['project_name']) ?><?= $all_added ? ' (All Quarters Added)' : '' ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        <?php endif; ?>
+
+                        <div class="form-field full">
+                            <label for="cs_quarter"><i class="fa-regular fa-calendar-check icon-logistic"></i> Target Period Quarter</label>
+                            <select name="quarter" id="cs_quarter" required>
+                                <option value="">Select target timeline window quadrant...</option>
+                                <option value="Q1">Q1</option><option value="Q2">Q2</option><option value="Q3">Q3</option><option value="Q4">Q4</option>
+                            </select>
+                        </div>
+
+                        <div class="form-field">
+                            <label for="cumulative_overall_target"><i class="fa-solid fa-circle-nodes icon-structure"></i> Cumulative Overall Target (%)</label>
+                            <input type="number" step="0.01" name="cumulative_overall_target" id="cumulative_overall_target" required placeholder="0.00">
+                        </div>
+
+                        <div class="form-field">
+                            <label for="cumulative_overall_progress"><i class="fa-solid fa-arrow-trend-up icon-finance"></i> Cumulative Overall Progress (%)</label>
+                            <input type="number" step="0.01" name="cumulative_overall_progress" id="cumulative_overall_progress" required placeholder="0.00">
+                        </div>
+
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary">
+                            <i class="fa fa-save"></i> Save Cumulative Status
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div id="funding_panel" class="tab-panel <?= $activeTab === 'funding' ? 'active-panel' : '' ?>">
+            <form class="physical-progress-form" action="" method="POST">
+                <input type="hidden" name="action_type" value="funding">
+                <?php if ($project): ?><input type="hidden" name="project_id" value="<?= $project_id ?>"><?php endif; ?>
+
+                <div class="form-section">
+                    <h2 class="section-title">Funding Information Parameters</h2>
+                    <div class="form-grid">
+
+                        <?php if (!$project): ?>
+                            <div class="form-field full">
+                                <label for="fn_project_id"><i class="fa-solid fa-folder-tree icon-code"></i> Select Project Profile</label>
+                                <select name="project_id" id="fn_project_id" required>
+                                    <option value="">-- Choose a Project Scope Map --</option>
+                                    <?php foreach ($projects_list as $p): ?>
+                                        <option value="<?= $p['id'] ?>">
+                                            <?= $escape($p['project_code'] ? $p['project_code'] . ' - ' : '') ?><?= $escape($p['project_name']) ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        <?php endif; ?>
+
+                        <div class="form-field">
+                            <label for="funding_source"><i class="fa-solid fa-building-columns icon-structure"></i> Funding Source Origin</label>
+                            <input type="text" name="funding_source" id="funding_source" required placeholder="Enter financing institution code source...">
+                        </div>
+
+                        <div class="form-field">
+                            <label for="funding_amount"><i class="fa-solid fa-money-check-dollar icon-finance"></i> Total Funding Amount</label>
+                            <input type="number" step="0.01" name="funding_amount" id="funding_amount" required placeholder="0.00">
+                        </div>
+
+                        <div class="form-field">
+                            <label for="allocation_year"><i class="fa-regular fa-calendar-days icon-logistic"></i> Budget Allocation Year</label>
+                            <input type="number" name="allocation_year" id="allocation_year" value="2026" required>
+                        </div>
+
+                        <div class="form-field">
+                            <label for="allocation_amount"><i class="fa-solid fa-coins icon-finance"></i> Allocation Financial Amount</label>
+                            <input type="number" step="0.01" name="allocation_amount" id="allocation_amount" required placeholder="0.00">
+                        </div>
+
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary">
+                            <i class="fa fa-save"></i> Save Funding Details
+                        </button>
+                    </div>
+                </div>
+            </form>
         </div>
 
     </div>
-
-    <!-- =========================================================
-         QUARTERLY PHYSICAL PROGRESS TAB
-    ========================================================== -->
-
-    <div id="quarterly" class="tab-content <?= $activeTab === 'quarterly' ? 'active' : '' ?>">
-
-        <div class="section-card">
-
-            <h2 class="section-title">
-                Quarterly Physical Progress
-            </h2>
-
-            <form action="" method="POST">
-
-                <div class="form-grid">
-                    <input type="hidden" name="action_type" value="quarterly_progress">
-
-                    <?php if ($project): ?>
-                        <input type="hidden" name="project_id" value="<?= $project_id ?>">
-                    <?php else: ?>
-                        <div class="form-group full-width">
-                            <label>Select Project</label>
-                            <select name="project_id" required>
-                                <option value="">-- Choose a Project --</option>
-                                <?php foreach ($projects_list as $p): ?>
-                                    <option value="<?= $p['id'] ?>" <?= !empty($p['has_quarterly']) ? 'disabled style="color: #94a3b8; background: #f1f5f9;"' : '' ?>>
-                                        <?= htmlspecialchars($p['project_code'] ? $p['project_code'] . ' - ' : '') ?><?= htmlspecialchars($p['project_name']) ?><?= !empty($p['has_quarterly']) ? ' (Already Added)' : '' ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    <?php endif; ?>
-
-                    <div class="form-group">
-                        <label>Quarter</label>
-
-                        <select name="quarter" required>
-                            <option value="">Select</option>
-                            <option value="Q1">Q1</option>
-                            <option value="Q2">Q2</option>
-                            <option value="Q3">Q3</option>
-                            <option value="Q4">Q4</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Cumulative Quarterly Target (%)</label>
-
-                        <input
-                            type="number"
-                            step="0.01"
-                            name="cumulative_quarterly_target"
-                            required
-                        >
-                    </div>
-
-                    <div class="form-group">
-                        <label>Cumulative Quarterly Progress (%)</label>
-
-                        <input
-                            type="number"
-                            step="0.01"
-                            name="cumulative_quarterly_progress"
-                            required
-                        >
-                    </div>
-
-                    <div class="form-group full-width">
-                        <label>Descriptive Cumulative Progress</label>
-
-                        <textarea
-                            name="descriptive_cumulative_progress"
-                            required
-                        ></textarea>
-                    </div>
-
-                    <div class="form-group full-width">
-                        <label>Current Quarterly Target</label>
-
-                        <textarea
-                            name="current_quarterly_target"
-                            required
-                        ></textarea>
-                    </div>
-
-                    <div class="form-group full-width">
-                        <label>Current Quarterly Progress</label>
-
-                        <textarea
-                            name="current_quarterly_progress"
-                            required
-                        ></textarea>
-                    </div>
-
-                    <div class="form-group full-width">
-                        <button type="submit" class="btn-submit">
-                            Save Quarterly Progress
-                        </button>
-                    </div>
-
-                </div>
-
-            </form>
-
-        </div>
-
-    </div>
-
-    <!-- =========================================================
-         CUMULATIVE STATUS TAB
-    ========================================================== -->
-
-    <div id="cumulative" class="tab-content <?= $activeTab === 'cumulative' ? 'active' : '' ?>">
-
-        <div class="section-card">
-
-            <h2 class="section-title">
-                Cumulative Physical Status
-            </h2>
-
-            <form action="" method="POST">
-
-                <div class="form-grid">
-                    <input type="hidden" name="action_type" value="cumulative_status">
-
-                    <?php if ($project): ?>
-                        <input type="hidden" name="project_id" value="<?= $project_id ?>">
-                    <?php else: ?>
-                        <div class="form-group full-width">
-                            <label>Select Project</label>
-                            <select name="project_id" required>
-                                <option value="">-- Choose a Project --</option>
-                                <?php foreach ($projects_list as $p): ?>
-                                    <option value="<?= $p['id'] ?>" <?= !empty($p['has_cumulative']) ? 'disabled style="color: #94a3b8; background: #f1f5f9;"' : '' ?>>
-                                        <?= htmlspecialchars($p['project_code'] ? $p['project_code'] . ' - ' : '') ?><?= htmlspecialchars($p['project_name']) ?><?= !empty($p['has_cumulative']) ? ' (Already Added)' : '' ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    <?php endif; ?>
-
-                    <div class="form-group">
-                        <label>Quarter</label>
-
-                        <select name="quarter" required>
-                            <option value="">Select</option>
-                            <option value="Q1">Q1</option>
-                            <option value="Q2">Q2</option>
-                            <option value="Q3">Q3</option>
-                            <option value="Q4">Q4</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Cumulative Overall Target (%)</label>
-
-                        <input
-                            type="number"
-                            step="0.01"
-                            name="cumulative_overall_target"
-                            required
-                        >
-                    </div>
-
-                    <div class="form-group">
-                        <label>Cumulative Overall Progress (%)</label>
-
-                        <input
-                            type="number"
-                            step="0.01"
-                            name="cumulative_overall_progress"
-                            required
-                        >
-                    </div>
-
-                    <div class="form-group full-width">
-                        <button type="submit" class="btn-submit">
-                            Save Cumulative Status
-                        </button>
-                    </div>
-
-                </div>
-
-            </form>
-
-        </div>
-
-    </div>
-
-    <!-- =========================================================
-         FUNDING TAB
-    ========================================================== -->
-
-    <div id="funding" class="tab-content <?= $activeTab === 'funding' ? 'active' : '' ?>">
-
-        <div class="section-card">
-
-            <h2 class="section-title">
-                Funding Information
-            </h2>
-
-            <form action="" method="POST">
-
-                <div class="form-grid">
-                    <input type="hidden" name="action_type" value="funding">
-
-                    <?php if ($project): ?>
-                        <input type="hidden" name="project_id" value="<?= $project_id ?>">
-                    <?php else: ?>
-                        <div class="form-group full-width">
-                            <label>Select Project</label>
-                            <select name="project_id" required>
-                                <option value="">-- Choose a Project --</option>
-                                <?php foreach ($projects_list as $p): ?>
-                                    <option value="<?= $p['id'] ?>" <?= !empty($p['has_funding']) ? 'disabled style="color: #94a3b8; background: #f1f5f9;"' : '' ?>>
-                                        <?= htmlspecialchars($p['project_code'] ? $p['project_code'] . ' - ' : '') ?><?= htmlspecialchars($p['project_name']) ?><?= !empty($p['has_funding']) ? ' (Already Added)' : '' ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    <?php endif; ?>
-
-                    <div class="form-group">
-                        <label>Funding Source</label>
-
-                        <input
-                            type="text"
-                            name="funding_source"
-                            required
-                        >
-                    </div>
-
-                    <div class="form-group">
-                        <label>Funding Amount</label>
-
-                        <input
-                            type="number"
-                            step="0.01"
-                            name="funding_amount"
-                            required
-                        >
-                    </div>
-
-                    <div class="form-group">
-                        <label>Allocation Year</label>
-
-                        <input
-                            type="number"
-                            name="allocation_year"
-                            value="<?= date('Y') ?>"
-                            required
-                        >
-                    </div>
-
-                    <div class="form-group">
-                        <label>Allocation Amount</label>
-
-                        <input
-                            type="number"
-                            step="0.01"
-                            name="allocation_amount"
-                            required
-                        >
-                    </div>
-
-                    <div class="form-group full-width">
-                        <button type="submit" class="btn-submit">
-                            Save Funding
-                        </button>
-                    </div>
-
-                </div>
-
-            </form>
-
-        </div>
-
-    </div>
-
 </div>
 
 <script>
+function switchTab(event, targetPanelId) {
+    // Hide all panels
+    document.querySelectorAll('.tab-panel').forEach(function(panel) {
+        panel.classList.remove('active-panel');
+    });
 
-function showTab(event, tabId){
+    // Deactivate all tab control triggers
+    document.querySelectorAll('.tab-trigger').forEach(function(btn) {
+        btn.classList.remove('active-tab');
+    });
 
-    document
-        .querySelectorAll('.tab-content')
-        .forEach(function(tab){
-
-            tab.classList.remove('active');
-
-        });
-
-    document
-        .querySelectorAll('.tab-btn')
-        .forEach(function(btn){
-
-            btn.classList.remove('active');
-
-        });
-
-    document
-        .getElementById(tabId)
-        .classList.add('active');
-
-    event.currentTarget.classList.add('active');
+    // Make target active
+    document.getElementById(targetPanelId).classList.add('active-panel');
+    event.currentTarget.classList.add('active-tab');
 }
 
+function setupQuarterDropdown(projectSelectId, quarterSelectId) {
+    const projectSelect = document.getElementById(projectSelectId);
+    const quarterSelect = document.getElementById(quarterSelectId);
+    
+    if (projectSelect && quarterSelect) {
+        for (let i = 0; i < quarterSelect.options.length; i++) {
+            if (quarterSelect.options[i].value !== '') {
+                quarterSelect.options[i].setAttribute('data-original-text', quarterSelect.options[i].text);
+            }
+        }
+
+        projectSelect.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            const addedQuarters = (selectedOption.getAttribute('data-quarters') || '').split(',');
+            
+            for (let i = 0; i < quarterSelect.options.length; i++) {
+                const opt = quarterSelect.options[i];
+                if (opt.value !== '') {
+                    opt.disabled = addedQuarters.includes(opt.value);
+                    opt.text = opt.disabled ? opt.getAttribute('data-original-text') + ' (Already Added)' : opt.getAttribute('data-original-text');
+                    opt.style.color = opt.disabled ? '#94a3b8' : '';
+                }
+            }
+            quarterSelect.value = '';
+        });
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    setupQuarterDropdown('pt_project_id', 'pt_quarter');
+    setupQuarterDropdown('qp_project_id', 'qp_quarter');
+    setupQuarterDropdown('cs_project_id', 'cs_quarter');
+});
 </script>
