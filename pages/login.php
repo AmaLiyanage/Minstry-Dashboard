@@ -17,9 +17,11 @@ if(isset($_POST['login'])){
     $password = $_POST['password'];
 
     $sql = "
-        SELECT *
-        FROM users
-        WHERE email='$email'
+        SELECT u.*, d.division_name, i.code as institution_code, i.institution_name 
+        FROM users u
+        LEFT JOIN divisions d ON u.division_id = d.id
+        LEFT JOIN institutions i ON d.institution_id = i.id
+        WHERE u.email='$email'
         LIMIT 1
     ";
 
@@ -41,6 +43,9 @@ if(isset($_POST['login'])){
                     $_SESSION['user_id'] = $user['id'];
                     $_SESSION['username'] = $user['username'];
                     $_SESSION['role'] = $user['role'];
+                    $_SESSION['division_id'] = $user['division_id'];
+                    $_SESSION['division_name'] = $user['division_name'];
+                    $_SESSION['institution_code'] = $user['institution_code'] ?: $user['institution_name'];
 
                     header("Location: ../index.php");
                     exit;

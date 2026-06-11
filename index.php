@@ -3,6 +3,19 @@ require_once __DIR__ . '/pages/auth.php';
 include_once __DIR__ . '/db.php';
 
 // 1. Capture current URL state
+$user_role = $_SESSION['role'] ?? 'user';
+$user_org  = $_SESSION['institution_code'] ?? '';
+$user_div  = $_SESSION['division_name'] ?? '';
+
+if ($user_role !== 'admin') {
+    $_GET['org'] = $user_org;
+    $_GET['division'] = $user_div;
+    $_GET['f_org'] = $user_org;
+    $_GET['f_div'] = $user_div;
+    $_GET['inst'] = $user_org;
+    $_GET['div'] = $user_div;
+}
+
 $page         = $_GET['page'] ?? 'welcome';
 $current_org  = $_GET['org'] ?? '';
 $f_div        = $_GET['f_div'] ?? 'All';
@@ -38,12 +51,17 @@ function get_org_divisions($org_code) {
     global $conn;
     $divisions = [];
     $org_code_escaped = mysqli_real_escape_string($conn, $org_code);
+    $org_up = strtoupper($org_code_escaped);
     
     $sql = "SELECT DISTINCT d.division_name 
             FROM divisions d
             JOIN institutions i ON d.institution_id = i.id
-            WHERE UPPER(TRIM(i.code)) = '" . strtoupper($org_code_escaped) . "' 
-               OR UPPER(TRIM(i.institution_name)) LIKE '%" . strtoupper($org_code_escaped) . "%'
+            WHERE UPPER(TRIM(i.code)) = '$org_up' 
+               OR UPPER(TRIM(i.institution_name)) = '$org_up'
+               OR UPPER(TRIM(i.institution_name)) LIKE '% $org_up %'
+               OR UPPER(TRIM(i.institution_name)) LIKE '$org_up %'
+               OR UPPER(TRIM(i.institution_name)) LIKE '% $org_up'
+               OR UPPER(TRIM(i.institution_name)) LIKE '%($org_up)%'
             ORDER BY d.division_name ASC";
             
     $result = mysqli_query($conn, $sql);
@@ -161,6 +179,14 @@ function build_nav_url($target_page, $sector, $org, $div) {
         ];
 
         foreach ($sectors as $sectorKey => $sectorData):
+            if ($user_role !== 'admin') {
+                if ($sectorKey === 'jct') {
+                    if ($user_org !== 'JCT') continue;
+                } else {
+                    if (!in_array($user_org, $sectorData['orgs'])) continue;
+                }
+            }
+
             $sector_open = ($page === $sectorKey || (isset($sectorData['orgs']) && in_array($current_org, $sectorData['orgs'])) || ($page === 'reports' && sector_of($selectedInst) === $sectorData['label']));
         ?>
             <!-- LEVEL 2: SECTOR -->
@@ -206,6 +232,8 @@ function build_nav_url($target_page, $sector, $org, $div) {
 
                 <?php else: ?>
                     <?php foreach ($sectorData['orgs'] as $org): 
+                        if ($user_role !== 'admin' && $org !== $user_org) continue;
+
                         $org_divs = get_org_divisions($org);
                         $org_open = ($current_org === $org || $selectedInst === $org || (in_array($page, ['project_create', 'add_financial', 'physical_progress', 'project_list', 'project_financial', 'physical_progress_display']) && $current_org === $org));
                         $pageSlug = ($org === 'MSS') ? 'mss' : $sectorKey;
@@ -223,10 +251,13 @@ function build_nav_url($target_page, $sector, $org, $div) {
                                 <i class="fa fa-chevron-down arrow"></i>
                             </div>
                             <div id="add-proj-<?= $org ?>" class="sub-menu">
-                                <a href="<?= build_nav_url('project_create', $sectorKey, $org, 'all') ?>" class="nav-item level-5 <?= get_nav_active_class('project_create', $org, 'All') ?>">
-                                    <i class="fa-solid fa-layer-group"></i> Institutional
-                                </a>
+                                <?php if ($user_role === 'admin'): ?>
+                                    <a href="<?= build_nav_url('project_create', $sectorKey, $org, 'all') ?>" class="nav-item level-5 <?= get_nav_active_class('project_create', $org, 'All') ?>">
+                                        <i class="fa-solid fa-layer-group"></i> Institutional
+                                    </a>
+                                <?php endif; ?>
                                 <?php foreach ($org_divs as $div): ?>
+                                    <?php if ($user_role !== 'admin' && $div !== $user_div) continue; ?>
                                     <a href="<?= build_nav_url('project_create', $sectorKey, $org, $div) ?>" class="nav-item level-5 <?= get_nav_active_class('project_create', $org, $div) ?>">
                                         <i class="fa-solid fa-caret-right"></i> <?= htmlspecialchars($div) ?>
                                     </a>
@@ -239,10 +270,13 @@ function build_nav_url($target_page, $sector, $org, $div) {
                                 <i class="fa fa-chevron-down arrow"></i>
                             </div>
                             <div id="add-fin-<?= $org ?>" class="sub-menu">
-                                <a href="<?= build_nav_url('add_financial', $sectorKey, $org, 'all') ?>" class="nav-item level-5 <?= get_nav_active_class('add_financial', $org, 'All') ?>">
-                                    <i class="fa-solid fa-layer-group"></i> Institutional
-                                </a>
+                                <?php if ($user_role === 'admin'): ?>
+                                    <a href="<?= build_nav_url('add_financial', $sectorKey, $org, 'all') ?>" class="nav-item level-5 <?= get_nav_active_class('add_financial', $org, 'All') ?>">
+                                        <i class="fa-solid fa-layer-group"></i> Institutional
+                                    </a>
+                                <?php endif; ?>
                                 <?php foreach ($org_divs as $div): ?>
+                                    <?php if ($user_role !== 'admin' && $div !== $user_div) continue; ?>
                                     <a href="<?= build_nav_url('add_financial', $sectorKey, $org, $div) ?>" class="nav-item level-5 <?= get_nav_active_class('add_financial', $org, $div) ?>">
                                         <i class="fa-solid fa-caret-right"></i> <?= htmlspecialchars($div) ?>
                                     </a>
@@ -255,10 +289,13 @@ function build_nav_url($target_page, $sector, $org, $div) {
                                 <i class="fa fa-chevron-down arrow"></i>
                             </div>
                             <div id="add-phys-<?= $org ?>" class="sub-menu">
-                                <a href="<?= build_nav_url('physical_progress', $sectorKey, $org, 'all') ?>" class="nav-item level-5 <?= get_nav_active_class('physical_progress', $org, 'All') ?>">
-                                    <i class="fa-solid fa-layer-group"></i> Institutional
-                                </a>
+                                <?php if ($user_role === 'admin'): ?>
+                                    <a href="<?= build_nav_url('physical_progress', $sectorKey, $org, 'all') ?>" class="nav-item level-5 <?= get_nav_active_class('physical_progress', $org, 'All') ?>">
+                                        <i class="fa-solid fa-layer-group"></i> Institutional
+                                    </a>
+                                <?php endif; ?>
                                 <?php foreach ($org_divs as $div): ?>
+                                    <?php if ($user_role !== 'admin' && $div !== $user_div) continue; ?>
                                     <a href="<?= build_nav_url('physical_progress', $sectorKey, $org, $div) ?>" class="nav-item level-5 <?= get_nav_active_class('physical_progress', $org, $div) ?>">
                                         <i class="fa-solid fa-caret-right"></i> <?= htmlspecialchars($div) ?>
                                     </a>
@@ -271,10 +308,13 @@ function build_nav_url($target_page, $sector, $org, $div) {
                                 <i class="fa fa-chevron-down arrow"></i>
                             </div>
                             <div id="proj-list-<?= $org ?>" class="sub-menu">
-                                <a href="<?= build_nav_url('project_list', $sectorKey, $org, 'all') ?>" class="nav-item level-5 <?= get_nav_active_class('project_list', $org, 'All') ?>">
-                                    <i class="fa-solid fa-layer-group"></i> Institutional
-                                </a>
+                                <?php if ($user_role === 'admin'): ?>
+                                    <a href="<?= build_nav_url('project_list', $sectorKey, $org, 'all') ?>" class="nav-item level-5 <?= get_nav_active_class('project_list', $org, 'All') ?>">
+                                        <i class="fa-solid fa-layer-group"></i> Institutional
+                                    </a>
+                                <?php endif; ?>
                                 <?php foreach ($org_divs as $div): ?>
+                                    <?php if ($user_role !== 'admin' && $div !== $user_div) continue; ?>
                                     <a href="<?= build_nav_url('project_list', $sectorKey, $org, $div) ?>" class="nav-item level-5 <?= get_nav_active_class('project_list', $org, $div) ?>">
                                         <i class="fa-solid fa-caret-right"></i> <?= htmlspecialchars($div) ?>
                                     </a>
@@ -287,10 +327,13 @@ function build_nav_url($target_page, $sector, $org, $div) {
                                 <i class="fa fa-chevron-down arrow"></i>
                             </div>
                             <div id="proj-fin-<?= $org ?>" class="sub-menu">
-                                <a href="<?= build_nav_url('project_financial', $sectorKey, $org, 'all') ?>" class="nav-item level-5 <?= get_nav_active_class('project_financial', $org, 'All') ?>">
-                                    <i class="fa-solid fa-layer-group"></i> Institutional
-                                </a>
+                                <?php if ($user_role === 'admin'): ?>
+                                    <a href="<?= build_nav_url('project_financial', $sectorKey, $org, 'all') ?>" class="nav-item level-5 <?= get_nav_active_class('project_financial', $org, 'All') ?>">
+                                        <i class="fa-solid fa-layer-group"></i> Institutional
+                                    </a>
+                                <?php endif; ?>
                                 <?php foreach ($org_divs as $div): ?>
+                                    <?php if ($user_role !== 'admin' && $div !== $user_div) continue; ?>
                                     <a href="<?= build_nav_url('project_financial', $sectorKey, $org, $div) ?>" class="nav-item level-5 <?= get_nav_active_class('project_financial', $org, $div) ?>">
                                         <i class="fa-solid fa-caret-right"></i> <?= htmlspecialchars($div) ?>
                                     </a>
@@ -303,10 +346,13 @@ function build_nav_url($target_page, $sector, $org, $div) {
                                 <i class="fa fa-chevron-down arrow"></i>
                             </div>
                             <div id="proj-phys-<?= $org ?>" class="sub-menu">
-                                <a href="<?= build_nav_url('physical_progress_display', $sectorKey, $org, 'all') ?>" class="nav-item level-5 <?= get_nav_active_class('physical_progress_display', $org, 'All') ?>">
-                                    <i class="fa-solid fa-layer-group"></i> Institutional
-                                </a>
+                                <?php if ($user_role === 'admin'): ?>
+                                    <a href="<?= build_nav_url('physical_progress_display', $sectorKey, $org, 'all') ?>" class="nav-item level-5 <?= get_nav_active_class('physical_progress_display', $org, 'All') ?>">
+                                        <i class="fa-solid fa-layer-group"></i> Institutional
+                                    </a>
+                                <?php endif; ?>
                                 <?php foreach ($org_divs as $div): ?>
+                                    <?php if ($user_role !== 'admin' && $div !== $user_div) continue; ?>
                                     <a href="<?= build_nav_url('physical_progress_display', $sectorKey, $org, $div) ?>" class="nav-item level-5 <?= get_nav_active_class('physical_progress_display', $org, $div) ?>">
                                         <i class="fa-solid fa-caret-right"></i> <?= htmlspecialchars($div) ?>
                                     </a>
@@ -319,10 +365,13 @@ function build_nav_url($target_page, $sector, $org, $div) {
                                 <i class="fa fa-chevron-down arrow"></i>
                             </div>
                             <div id="std-<?= $org ?>" class="sub-menu">
-                                <a href="index.php?page=<?= $pageSlug ?>&org=<?= $org ?>&division=all" class="nav-item level-5 <?= get_nav_active_class($pageSlug, $org, 'All') ?>">
-                                    <i class="fa-solid fa-layer-group"></i> Institutional
-                                </a>
+                                <?php if ($user_role === 'admin'): ?>
+                                    <a href="index.php?page=<?= $pageSlug ?>&org=<?= $org ?>&division=all" class="nav-item level-5 <?= get_nav_active_class($pageSlug, $org, 'All') ?>">
+                                        <i class="fa-solid fa-layer-group"></i> Institutional
+                                    </a>
+                                <?php endif; ?>
                                 <?php foreach ($org_divs as $div): ?>
+                                    <?php if ($user_role !== 'admin' && $div !== $user_div) continue; ?>
                                     <a href="index.php?page=<?= $pageSlug ?>&org=<?= $org ?>&division=<?= urlencode($div) ?>" class="nav-item level-5 <?= get_nav_active_class($pageSlug, $org, $div) ?>">
                                         <i class="fa-solid fa-caret-right"></i> <?= htmlspecialchars($div) ?>
                                     </a>
@@ -335,10 +384,13 @@ function build_nav_url($target_page, $sector, $org, $div) {
                                 <i class="fa fa-chevron-down arrow"></i>
                             </div>
                             <div id="prog-<?= $org ?>" class="sub-menu">
-                                <a href="<?= build_nav_url('progress_view', $sectorKey, $org, 'all') ?>" class="nav-item level-5 <?= get_nav_active_class('progress_view', $org, 'All') ?>">
-                                    <i class="fa-solid fa-layer-group"></i> Institutional
-                                </a>
+                                <?php if ($user_role === 'admin'): ?>
+                                    <a href="<?= build_nav_url('progress_view', $sectorKey, $org, 'all') ?>" class="nav-item level-5 <?= get_nav_active_class('progress_view', $org, 'All') ?>">
+                                        <i class="fa-solid fa-layer-group"></i> Institutional
+                                    </a>
+                                <?php endif; ?>
                                 <?php foreach ($org_divs as $div): ?>
+                                    <?php if ($user_role !== 'admin' && $div !== $user_div) continue; ?>
                                     <a href="<?= build_nav_url('progress_view', $sectorKey, $org, $div) ?>" class="nav-item level-5 <?= get_nav_active_class('progress_view', $org, $div) ?>">
                                         <i class="fa-solid fa-caret-right"></i> <?= htmlspecialchars($div) ?>
                                     </a>
@@ -351,10 +403,13 @@ function build_nav_url($target_page, $sector, $org, $div) {
                                 <i class="fa fa-chevron-down arrow"></i>
                             </div>
                             <div id="ana-<?= $org ?>" class="sub-menu">
-                                <a href="index.php?page=analytics&org=<?= $org ?>&f_div=All" class="nav-item level-5 <?= get_nav_active_class('analytics', $org, 'All') ?>">
-                                    <i class="fa-solid fa-layer-group"></i> Institutional
-                                </a>
+                                <?php if ($user_role === 'admin'): ?>
+                                    <a href="index.php?page=analytics&org=<?= $org ?>&f_div=All" class="nav-item level-5 <?= get_nav_active_class('analytics', $org, 'All') ?>">
+                                        <i class="fa-solid fa-layer-group"></i> Institutional
+                                    </a>
+                                <?php endif; ?>
                                 <?php foreach ($org_divs as $div): ?>
+                                    <?php if ($user_role !== 'admin' && $div !== $user_div) continue; ?>
                                     <a href="index.php?page=analytics&org=<?= $org ?>&f_div=<?= urlencode($div) ?>" class="nav-item level-5 <?= get_nav_active_class('analytics', $org, $div) ?>">
                                         <i class="fa-solid fa-caret-right"></i> <?= htmlspecialchars($div) ?>
                                     </a>
@@ -367,10 +422,13 @@ function build_nav_url($target_page, $sector, $org, $div) {
                                 <i class="fa fa-chevron-down arrow"></i>
                             </div>
                             <div id="rep-<?= $org ?>" class="sub-menu">
-                                <a href="index.php?page=reports&inst=<?= $org ?>&div=All" class="nav-item level-5 <?= ($page === 'reports' && $selectedInst === $org && $selectedDiv === 'All') ? 'is-active' : '' ?>">
-                                    <i class="fa-solid fa-layer-group"></i> Institutional
-                                </a>
+                                <?php if ($user_role === 'admin'): ?>
+                                    <a href="index.php?page=reports&inst=<?= $org ?>&div=All" class="nav-item level-5 <?= ($page === 'reports' && $selectedInst === $org && $selectedDiv === 'All') ? 'is-active' : '' ?>">
+                                        <i class="fa-solid fa-layer-group"></i> Institutional
+                                    </a>
+                                <?php endif; ?>
                                 <?php foreach ($org_divs as $div): ?>
+                                    <?php if ($user_role !== 'admin' && $div !== $user_div) continue; ?>
                                     <a href="index.php?page=reports&inst=<?= $org ?>&div=<?= urlencode($div) ?>" class="nav-item level-5 <?= ($page === 'reports' && $selectedInst === $org && urldecode($selectedDiv) === $div) ? 'is-active' : '' ?>">
                                         <i class="fa-solid fa-caret-right"></i> <?= htmlspecialchars($div) ?>
                                     </a>

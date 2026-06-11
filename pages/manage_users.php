@@ -72,7 +72,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Extract all users from the database
 $users = [];
-$res = mysqli_query($conn, "SELECT * FROM users ORDER BY created_at DESC, id DESC");
+$sql_users = "SELECT u.*, d.division_name, i.code as institution_code 
+              FROM users u 
+              LEFT JOIN divisions d ON u.division_id = d.id 
+              LEFT JOIN institutions i ON d.institution_id = i.id 
+              ORDER BY u.created_at DESC, u.id DESC";
+$res = mysqli_query($conn, $sql_users);
 if ($res) {
     while ($row = mysqli_fetch_assoc($res)) {
         $users[] = $row;
@@ -259,6 +264,9 @@ function e($val) {
                 </div>
                 <div class="user-info">
                     <div><i class="fa-solid fa-envelope"></i> <?= e($u['email']) ?></div>
+                    <?php if (!empty($u['division_name'])): ?>
+                        <div><i class="fa-solid fa-sitemap"></i> <?= e($u['institution_code'] ?: 'Unallocated') ?> &mdash; <?= e($u['division_name']) ?></div>
+                    <?php endif; ?>
                     <div><i class="fa-regular fa-clock"></i> Joined: <?= date('Y-m-d', strtotime($u['created_at'])) ?></div>
                 </div>
                 <div class="user-actions">

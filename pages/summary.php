@@ -81,8 +81,8 @@ $aviationAlloc = ['AASL' => 0.0, 'CAASL' => 0.0];
 foreach ($allProjects as $project) {
     $orgCodeRaw = strtoupper(trim($project['_org_code'] ?: $project['_org_name'] ?? ''));
     $orgCode = $orgCodeRaw;
-    if (strpos($orgCodeRaw, 'AASL') !== false) $orgCode = 'AASL';
-    elseif (strpos($orgCodeRaw, 'CAASL') !== false) $orgCode = 'CAASL';
+    if (strpos($orgCodeRaw, 'CAASL') !== false) $orgCode = 'CAASL';
+    elseif (strpos($orgCodeRaw, 'AASL') !== false) $orgCode = 'AASL';
     elseif (strpos($orgCodeRaw, 'SLPA') !== false) $orgCode = 'SLPA';
     elseif (strpos($orgCodeRaw, 'MSS') !== false || strpos($orgCodeRaw, 'MERCHANT') !== false) $orgCode = 'MSS';
     elseif (strpos($orgCodeRaw, 'JCT') !== false) $orgCode = 'JCT';

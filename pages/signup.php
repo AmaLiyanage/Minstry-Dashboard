@@ -12,9 +12,12 @@ if(isset($_POST['signup'])){
 
     $password = $_POST['password'];
     $confirm_password = $_POST['confirm_password'];
+    $division_id = (int)($_POST['division_id'] ?? 0);
 
     if ($password !== $confirm_password) {
         $message = "Passwords do not match.";
+    } elseif ($division_id <= 0) {
+        $message = "Please select your institution and division.";
     } else {
         $password_hash = password_hash(
             $password,
@@ -39,7 +42,8 @@ if(isset($_POST['signup'])){
                     username,
                     email,
                     password,
-                    status
+                    status,
+                    division_id
                 )
                 VALUES
                 (
@@ -47,13 +51,22 @@ if(isset($_POST['signup'])){
                     '$username',
                     '$email',
                     '$password_hash',
-                    'pending'
+                    'pending',
+                    $division_id
                 )"
             );
 
             header("Location: login.php?registered=true");
             exit;
         }
+    }
+}
+
+$institutions = [];
+$instRes = mysqli_query($conn, "SELECT id, code, institution_name FROM institutions ORDER BY institution_name ASC");
+if ($instRes) {
+    while ($row = mysqli_fetch_assoc($instRes)) {
+        $institutions[] = $row;
     }
 }
 ?>
@@ -88,6 +101,18 @@ if(isset($_POST['signup'])){
         <input type="email" name="email" placeholder="Email" required>
         <input type="password" name="password" placeholder="Password" required>
         <input type="password" name="confirm_password" placeholder="Confirm Password" required>
+        
+        <select name="institution_id" id="institution_id" required style="width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-family: 'Inter', sans-serif; color: #1e293b;">
+            <option value="">Select Institution</option>
+            <?php foreach ($institutions as $inst): ?>
+                <option value="<?= $inst['id'] ?>"><?= htmlspecialchars($inst['code'] ? $inst['code'] . ' - ' : '') ?><?= htmlspecialchars($inst['institution_name']) ?></option>
+            <?php endforeach; ?>
+        </select>
+
+        <select name="division_id" id="division_id" required style="width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-family: 'Inter', sans-serif; color: #1e293b;">
+            <option value="">Select Division</option>
+        </select>
+
         <button type="submit" name="signup">Sign Up</button>
     </form>
 
@@ -96,5 +121,30 @@ if(isset($_POST['signup'])){
     </div>
 </div>
 
+<script>
+document.getElementById('institution_id').addEventListener('change', function() {
+    const instId = this.value;
+    const divSelect = document.getElementById('division_id');
+    divSelect.innerHTML = '<option value="">Loading divisions...</option>';
+    
+    if (!instId) {
+        divSelect.innerHTML = '<option value="">Select Division</option>';
+        return;
+    }
+    
+    fetch('get_divisions.php?institution_id=' + encodeURIComponent(instId))
+        .then(res => res.json())
+        .then(data => {
+            let options = '<option value="">Select Division</option>';
+            data.forEach(d => {
+                options += '<option value="' + d.id + '">' + d.division_name + '</option>';
+            });
+            divSelect.innerHTML = options;
+        })
+        .catch(err => {
+            divSelect.innerHTML = '<option value="">Error loading divisions</option>';
+        });
+});
+</script>
 </body>
 </html>

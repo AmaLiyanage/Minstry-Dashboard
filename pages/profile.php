@@ -6,9 +6,11 @@ include_once __DIR__ . '/../db.php';
 $user_id = $_SESSION['user_id'];
 
 $sql = "
-    SELECT *
-    FROM users
-    WHERE id = ?
+    SELECT u.*, d.division_name, i.institution_name
+    FROM users u
+    LEFT JOIN divisions d ON u.division_id = d.id
+    LEFT JOIN institutions i ON d.institution_id = i.id
+    WHERE u.id = ?
 ";
 
 $stmt = mysqli_prepare($conn, $sql);
@@ -128,6 +130,17 @@ $user = mysqli_fetch_assoc($result);
     <div class="profile-row">
         <div class="profile-label">Email Address</div>
         <div class="profile-value"><?= htmlspecialchars($user['email']) ?></div>
+    </div>
+
+    <div class="profile-row">
+        <div class="profile-label">Organization & Division</div>
+        <div class="profile-value">
+            <?php if (!empty($user['institution_name'])): ?>
+                <?= htmlspecialchars($user['institution_name']) ?> &mdash; <?= htmlspecialchars($user['division_name']) ?>
+            <?php else: ?>
+                <span style="color:#94a3b8; font-style:italic;">Not Assigned</span>
+            <?php endif; ?>
+        </div>
     </div>
 
     <div class="profile-row">

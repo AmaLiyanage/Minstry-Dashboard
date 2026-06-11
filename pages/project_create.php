@@ -114,7 +114,12 @@ $instSql = "SELECT i.id, i.code, i.institution_name, i.category_id, c.category_n
             LEFT JOIN categories c ON i.category_id = c.id";
 if ($orgCode !== '') {
     $orgCodeEscaped = mysqli_real_escape_string($conn, $orgCode);
-    $instSql .= " WHERE UPPER(TRIM(i.code)) = '" . $orgCodeEscaped . "' OR UPPER(TRIM(i.institution_name)) LIKE '%" . $orgCodeEscaped . "%'";
+    $instSql .= " WHERE UPPER(TRIM(i.code)) = '" . $orgCodeEscaped . "' 
+                  OR UPPER(TRIM(i.institution_name)) = '" . $orgCodeEscaped . "'
+                  OR UPPER(TRIM(i.institution_name)) LIKE '% " . $orgCodeEscaped . " %'
+                  OR UPPER(TRIM(i.institution_name)) LIKE '" . $orgCodeEscaped . " %'
+                  OR UPPER(TRIM(i.institution_name)) LIKE '% " . $orgCodeEscaped . "'
+                  OR UPPER(TRIM(i.institution_name)) LIKE '%(" . $orgCodeEscaped . ")%'";
 }
 $instSql .= " ORDER BY i.institution_name ASC";
 
@@ -155,7 +160,7 @@ if ($selectedInstitutionId <= 0) {
     } elseif ($orgCode !== '') {
         foreach ($institutions as $institution) {
             $codeMatch = strtoupper(trim((string)$institution['code'])) === $orgCode;
-            $nameMatch = stripos(trim((string)$institution['institution_name']), $orgCode) !== false;
+            $nameMatch = preg_match('/\b' . preg_quote($orgCode, '/') . '\b/i', trim((string)$institution['institution_name']));
             if ($codeMatch || $nameMatch) {
                 $selectedInstitutionId = (int)$institution['id'];
                 $selectedCategoryId = (int)$institution['category_id'];

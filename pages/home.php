@@ -19,6 +19,12 @@ $sql = "SELECT p.*, i.code AS institution_code, i.institution_name, d.division_n
         FROM projects p 
         LEFT JOIN institutions i ON p.institution_id = i.id
         LEFT JOIN divisions d ON p.division_id = d.id";
+
+if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+    $u_div = mysqli_real_escape_string($conn, $_SESSION['division_name'] ?? '');
+    $sql .= " WHERE d.division_name = '$u_div'";
+}
+
 $result = mysqli_query($conn, $sql);
 $allProjects = [];
 if ($result) {
