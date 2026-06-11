@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/pages/auth.php';
 include_once __DIR__ . '/db.php';
 
 // 1. Capture current URL state
@@ -135,12 +136,17 @@ function build_nav_url($target_page, $sector, $org, $div) {
     <a href="index.php?page=welcome" class="nav-item <?= get_nav_active_class('welcome') ?>">
         <span><i class="fa-solid fa-door-open"></i> Welcome Portal</span>
     </a>
+    <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin'): ?>
     <a href="index.php?page=home" class="nav-item <?= get_nav_active_class('home') ?>">
         <span><i class="fa-solid fa-earth-americas"></i> Global Dashboard</span>
     </a>
     <a href="index.php?page=organization_structure" class="nav-item <?= get_nav_active_class('organization_structure') ?>">
         <span><i class="fa-solid fa-sitemap"></i> Organization Structure</span>
     </a>
+    <a href="index.php?page=manage_users" class="nav-item <?= get_nav_active_class('manage_users') ?>">
+        <span><i class="fa-solid fa-users-gear"></i> Manage Users</span>
+    </a>
+    <?php endif; ?>
 
     <div class="nav-item menu-toggle open" onclick="toggleMenu('projects-menu',this)">
         <span><i class="fa fa-folder-open"></i> Projects Control</span>
@@ -376,6 +382,14 @@ function build_nav_url($target_page, $sector, $org, $div) {
             </div>
         <?php endforeach; ?>
     </div>
+
+    <div class="sidebar-divider" style="margin-top: 20px;"></div>
+    <a href="index.php?page=profile" class="nav-item <?= get_nav_active_class('profile') ?>">
+        <span><i class="fa-solid fa-user"></i> My Profile</span>
+    </a>
+    <a href="pages/logout.php" class="nav-item">
+        <span><i class="fa-solid fa-right-from-bracket"></i> Logout</span>
+    </a>
 </div>
 
 <div class="content">

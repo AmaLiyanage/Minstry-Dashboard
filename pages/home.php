@@ -1,7 +1,18 @@
 <?php
+include_once __DIR__ . '/auth.php';
 include_once __DIR__ . '/../db.php';
 
 $filterSector = $_GET['sector'] ?? 'all';
+
+// Restrict the "Global Dashboard" view to admins only, but allow specific sector views
+if ($filterSector === 'all' && (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin')) {
+    echo "<div style='padding: 60px; text-align: center; font-family: \"Inter\", sans-serif;'>
+        <i class='fa-solid fa-shield-halved' style='font-size: 48px; color: #ef4444; margin-bottom: 20px;'></i>
+        <h2 style='color: #0f172a; margin-bottom: 10px;'>Access Denied</h2>
+        <p style='color: #64748b;'>You must be an administrator to view the Global Dashboard.</p>
+    </div>";
+    exit;
+}
 
 // --- 1. DATA EXTRACTION FROM DB ---
 $sql = "SELECT p.*, i.code AS institution_code, i.institution_name, d.division_name AS division 
@@ -430,7 +441,7 @@ foreach ($caaslProjects as $p) {
                         </div>
                         <div class="div-chips">
                             <?php foreach ($slpaDisplayList as $div): if($div['count'] > 0): ?>
-                                <a href="index.php?page=summary&org=SLPA&division=<?= urlencode($div['query']) ?>" class="div-chip">
+                                <a href="index.php?page=division_view&org=SLPA&division=<?= urlencode($div['query']) ?>" class="div-chip">
                                     <?= htmlspecialchars($div['label']) ?> <span class="div-count count-ports"><?= (int)$div['count'] ?></span>
                                 </a>
                             <?php endif; endforeach; ?>
@@ -439,12 +450,12 @@ foreach ($caaslProjects as $p) {
 
                     <div class="inst-card">
                         <div class="inst-header">
-                            <a href="index.php?page=summary&org=MSS&division=all" class="inst-title"><i class="fa-solid fa-building"></i> Merchant Shipping (MSS)</a>
+                            <a href="index.php?page=mss&org=MSS&division=all" class="inst-title"><i class="fa-solid fa-building"></i> Merchant Shipping (MSS)</a>
                             <span class="badge badge-ports"><?= $totalMss ?></span>
                         </div>
                         <div class="div-chips">
                             <?php foreach ($mssDivCounts as $name => $count): ?>
-                                <a href="index.php?page=summary&org=MSS&division=<?= urlencode($name) ?>" class="div-chip">
+                                <a href="index.php?page=division_view&org=MSS&division=<?= urlencode($name) ?>" class="div-chip">
                                     <?= htmlspecialchars($name) ?> <span class="div-count count-ports"><?= $count ?></span>
                                 </a>
                             <?php endforeach; ?>
@@ -482,7 +493,7 @@ foreach ($caaslProjects as $p) {
                         </div>
                         <div class="div-chips">
                             <?php foreach ($aaslDisplay as $div): if($div['count'] > 0): ?>
-                                <a href="index.php?page=summary&org=AASL&division=<?= urlencode($div['query']) ?>" class="div-chip">
+                                <a href="index.php?page=division_view&org=AASL&division=<?= urlencode($div['query']) ?>" class="div-chip">
                                     <?= htmlspecialchars($div['label']) ?> <span class="div-count count-aviation"><?= (int)$div['count'] ?></span>
                                 </a>
                             <?php endif; endforeach; ?>
@@ -496,7 +507,7 @@ foreach ($caaslProjects as $p) {
                         </div>
                         <div class="div-chips">
                             <?php foreach ($caaslDivCounts as $name => $count): ?>
-                                <a href="index.php?page=summary&org=CAASL&division=<?= urlencode($name) ?>" class="div-chip">
+                                <a href="index.php?page=division_view&org=CAASL&division=<?= urlencode($name) ?>" class="div-chip">
                                     <?= htmlspecialchars($name) ?> <span class="div-count count-aviation"><?= $count ?></span>
                                 </a>
                             <?php endforeach; ?>

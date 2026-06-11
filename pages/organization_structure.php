@@ -1,4 +1,5 @@
 <?php
+include_once __DIR__ . '/auth_admin.php';
 include_once __DIR__ . "/../db.php";
 
 $script_name = str_replace("\\", "/", $_SERVER["SCRIPT_NAME"] ?? "");
