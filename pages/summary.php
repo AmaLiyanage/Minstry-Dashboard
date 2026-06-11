@@ -4,9 +4,12 @@ include_once __DIR__ . '/../db.php';
 // --- 1. CAPTURE SELECTION PARAMETERS ---
 $selectedOrg = $_GET['org'] ?? $_GET['institute'] ?? null;
 $selectedDivision = $_GET['division'] ?? 'all';
+$selectedQuarter = $_GET['quarter'] ?? 'Q1';
 
+// Sanitize inputs
 $selectedOrg = is_string($selectedOrg) ? trim($selectedOrg) : null;
 $selectedDivision = is_string($selectedDivision) ? trim($selectedDivision) : 'all';
+$selectedQuarter = in_array(strtoupper($selectedQuarter), ['Q1', 'Q2', 'Q3', 'Q4']) ? strtoupper($selectedQuarter) : 'Q1';
 
 // --- 2. HELPERS ---
 function summary_h($value): string {
@@ -26,34 +29,35 @@ function summary_first_number($value): float {
 }
 
 // --- 3. BUILD FLAT PROJECT LIST FROM DB ---
+// Adjusted query to pull targets explicitly matching the selected quarter context
 $sql = "SELECT p.*, i.code AS _org_code, i.institution_name AS _org_name, d.division_name AS division,
-       f.cum_fin_target AS q1_fin_target,
-       f.actual_expenditure AS q1_fin_actual,
-       qp.cumulative_quarterly_target AS q1_phys_target,
-       qp.cumulative_quarterly_progress AS q1_phys_actual,
-       qp.progress_percentage AS q1_quarterly_cum,
-       cp.cumulative_overall_target AS q1_cum_target,
-       cp.cumulative_overall_progress AS q1_cum_prog,
-       cp.physical_progress_percentage AS q1_overall_prog_final
+       f.cum_fin_target AS fin_target,
+       f.actual_expenditure AS fin_actual,
+       qp.cumulative_quarterly_target AS phys_target,
+       qp.cumulative_quarterly_progress AS phys_actual,
+       qp.progress_percentage AS quarterly_cum,
+       cp.cumulative_overall_target AS cum_target,
+       cp.cumulative_overall_progress AS cum_prog,
+       cp.physical_progress_percentage AS overall_prog_final
 FROM projects p
 LEFT JOIN institutions i ON p.institution_id = i.id
 LEFT JOIN divisions d ON p.division_id = d.id
-LEFT JOIN financial_progress f ON p.id = f.project_id AND f.quarter = 'Q1'
-LEFT JOIN quarterly_physical_progress qp ON p.id = qp.project_id AND qp.quarter = 'Q1'
-LEFT JOIN cumulative_physical_status cp ON p.id = cp.project_id AND cp.quarter = 'Q1'";
+LEFT JOIN financial_progress f ON p.id = f.project_id AND f.quarter = '$selectedQuarter'
+LEFT JOIN quarterly_physical_progress qp ON p.id = qp.project_id AND qp.quarter = '$selectedQuarter'
+LEFT JOIN cumulative_physical_status cp ON p.id = cp.project_id AND cp.quarter = '$selectedQuarter'";
 
 $result = mysqli_query($conn, $sql);
 $allProjects = [];
 if ($result) {
     while ($row = mysqli_fetch_assoc($result)) {
-        $row['actual_exp'] = ['Q1' => $row['q1_fin_actual']];
+        $row['actual_exp'] = [$selectedQuarter => $row['fin_actual']];
         $row['phys_percent'] = [
-            'Q1' => $row['q1_phys_actual'],
-            'Q1_Target' => $row['q1_phys_target'],
-            'Q1_Overall_Prog_Final' => $row['q1_overall_prog_final'],
-            'Q1_Cum_Target' => $row['q1_cum_target'],
-            'Q1_Cum_Prog' => $row['q1_cum_prog'],
-            'Q1_Quarterly_Cum' => $row['q1_quarterly_cum']
+            $selectedQuarter => $row['phys_actual'],
+            'Target' => $row['phys_target'],
+            'Overall_Prog_Final' => $row['overall_prog_final'],
+            'Cum_Target' => $row['cum_target'],
+            'Cum_Prog' => $row['cum_prog'],
+            'Quarterly_Cum' => $row['quarterly_cum']
         ];
         $allProjects[] = $row;
     }
@@ -63,15 +67,14 @@ if ($result) {
 $projCount = 0;
 $agg = [
     'alloc_orig' => 0.0, 'alloc_rev' => 0.0,
-    'q1_fin_target' => 0.0, 'q1_fin_actual' => 0.0,
-    'exp_2025' => 0.0, 'phys_2025_sum' => 0.0,
-    'q1_phys_actual_sum' => 0.0, 'q1_phys_target_sum' => 0.0,
-    'q1_qly_cum_sum' => 0.0, 'q1_overall_achieve_sum' => 0.0,
-    'q1_overall_target_sum' => 0.0, 'q1_cum_phys_sum' => 0.0
+    'fin_target' => 0.0, 'fin_actual' => 0.0,
+    'phys_actual_sum' => 0.0, 'phys_target_sum' => 0.0,
+    'qly_cum_sum' => 0.0, 'overall_achieve_sum' => 0.0,
+    'overall_target_sum' => 0.0, 'cum_phys_sum' => 0.0
 ];
 
 $fundingSources = ['CAASL' => 0, 'AASL' => 0, 'SLPA' => 0, 'Gov' => 0];
-$portsAlloc = ['SLPA' => 0.0, 'MSS' => 0.0, 'CSC' => 0.0]; // Updated labels
+$portsAlloc = ['SLPA' => 0.0, 'MSS' => 0.0, 'CSC' => 0.0]; 
 $aviationAlloc = ['AASL' => 0.0, 'CAASL' => 0.0];
 
 // --- 5. DATA PROCESSING LOOP ---
@@ -95,18 +98,15 @@ foreach ($allProjects as $project) {
     if (!$matchDiv) {
         $selDivClean = summary_clean($selectedDivision);
         
-        // Aviation specific logic
         if ($orgCode === 'AASL') {
             if ($selDivClean === 'CIVIL' && (strpos($divRaw, 'CE') !== false)) $matchDiv = true;
             elseif ($selDivClean === 'MECH' && (strpos($divRaw, 'ME') !== false)) $matchDiv = true;
             elseif ($divRaw === $selDivClean) $matchDiv = true;
         } 
-        // Consolidated Electrical logic for SLPA
         elseif ($orgCode === 'SLPA' && $selDivClean === 'ELECTRICAL & ELECTRONIC') {
             if (in_array($divRaw, ['ELECTRICAL & ELECTRONIC', 'ELECTRICAL & ELECTRONICS ENG. DIV.', 'EE'])) $matchDiv = true;
             else if ($divRaw === $selDivClean) $matchDiv = true;
         }
-        // Standard matching for other Port/Division entries
         elseif ($divRaw === $selDivClean) {
             $matchDiv = true;
         }
@@ -118,16 +118,16 @@ foreach ($allProjects as $project) {
     $agg['alloc_orig'] += summary_first_number($project['allocation_2026_original'] ?? 0);
     $agg['alloc_rev']  += summary_first_number($project['allocation_2026_revised'] ?? 0);
     
-    $agg['q1_fin_target'] += summary_first_number($project['q1_fin_target'] ?? 0);
-    $agg['q1_fin_actual'] += summary_first_number($project['actual_exp']['Q1'] ?? 0);
+    $agg['fin_target'] += summary_first_number($project['fin_target'] ?? 0);
+    $agg['fin_actual'] += summary_first_number($project['actual_exp'][$selectedQuarter] ?? 0);
 
     $phys = $project['phys_percent'] ?? [];
-    $agg['q1_phys_actual_sum'] += summary_first_number($phys['Q1'] ?? 0);
-    $agg['q1_phys_target_sum'] += summary_first_number($phys['Q1_Target'] ?? 0);
-    $agg['q1_overall_achieve_sum'] += summary_first_number($phys['Q1_Overall_Prog_Final'] ?? 0);
-    $agg['q1_overall_target_sum']  += summary_first_number($phys['Q1_Cum_Target'] ?? 0);
-    $agg['q1_cum_phys_sum']        += summary_first_number($phys['Q1_Cum_Prog'] ?? 0);
-    $agg['q1_qly_cum_sum']         += summary_first_number($phys['Q1_Quarterly_Cum'] ?? 0);
+    $agg['phys_actual_sum'] += summary_first_number($phys[$selectedQuarter] ?? 0);
+    $agg['phys_target_sum'] += summary_first_number($phys['Target'] ?? 0);
+    $agg['overall_achieve_sum'] += summary_first_number($phys['Overall_Prog_Final'] ?? 0);
+    $agg['overall_target_sum']  += summary_first_number($phys['Cum_Target'] ?? 0);
+    $agg['cum_phys_sum']        += summary_first_number($phys['Cum_Prog'] ?? 0);
+    $agg['qly_cum_sum']         += summary_first_number($phys['Quarterly_Cum'] ?? 0);
 
     // Track funding source
     $fs = summary_clean($project['funding_source'] ?? '');
@@ -141,7 +141,7 @@ foreach ($allProjects as $project) {
 }
 
 $divisor = max(1, $projCount);
-$avg_q1_phys = $agg['q1_phys_actual_sum'] / $divisor;
+$avg_quarter_phys = $agg['phys_actual_sum'] / $divisor;
 
 $isAviation = in_array(strtoupper($selectedOrg), ['AASL', 'CAASL']);
 $isPorts = in_array(strtoupper($selectedOrg), ['SLPA', 'MSS', 'MS', 'CSC']);
@@ -155,23 +155,25 @@ if($selectedDivision !== 'all') $scopeLabel .= " : " . $selectedDivision;
     .summary-wrapper { padding: 15px 25px; max-width: 100%; margin: 0; font-family: 'Inter', sans-serif; background: #f8fafc; }
     
     .sum-header { 
-        background: #1e3a5f; color: white; padding: 15px 20px; border-radius: 12px; 
+        background: #1a365d; color: white; padding: 15px 20px; border-radius: 12px; 
         display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; 
     }
+    .controls-wrapper { display: flex; align-items: center; gap: 15px; }
+    .quarter-select { padding: 6px 12px; border-radius: 6px; border: 1px solid #cbd5e1; background: white; color: #1a365d; font-weight: 700; outline: none; cursor: pointer; font-size: 13px; }
     
     .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
-    .kpi-card { background: white; padding: 20px 25px; border-radius: 15px; border-left: 6px solid #1e3a5f; box-shadow: 0 4px 10px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 20px; }
-    .kpi-card i { font-size: 32px; color: #1e3a5f; }
+    .kpi-card { background: white; padding: 20px 25px; border-radius: 15px; border-left: 6px solid #1a365d; box-shadow: 0 4px 10px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 20px; }
+    .kpi-card i { font-size: 32px; color: #1a365d; }
     .kpi-card div { display: flex; flex-direction: column; }
-    .kpi-card small { font-size: 11px; font-weight: 800; color: #718096; text-transform: uppercase; margin-bottom: 4px; }
-    .kpi-card h2 { margin: 0; font-size: 28px; color: #1e3a5f; font-weight: 900; }
+    .kpi-card small { font-size: 11px; font-weight: 800; color: #4a5568; text-transform: uppercase; margin-bottom: 4px; }
+    .kpi-card h2 { margin: 0; font-size: 28px; color: #1a365d; font-weight: 900; }
 
     .detail-matrix { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; }
     .matrix-box { background: white; padding: 18px 22px; border-radius: 15px; border: 1px solid #e2e8f0; display: flex; align-items: flex-start; gap: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
     .matrix-box i { font-size: 20px; margin-top: 5px; }
-    .matrix-box small { font-size: 10px; font-weight: 800; color: #0ea5e9; display: block; margin-bottom: 8px; text-transform: uppercase; }
-    .m-val { font-size: 20px; font-weight: 900; color: #1e293b; margin-bottom: 5px;}
-    .m-sub { font-size: 13px; color: #64748b; font-weight: 600; }
+    .matrix-box small { font-size: 10px; font-weight: 800; color: #2b6cb0; display: block; margin-bottom: 8px; text-transform: uppercase; }
+    .m-val { font-size: 20px; font-weight: 900; color: #1a202c; margin-bottom: 5px;}
+    .m-sub { font-size: 13px; color: #4a5568; font-weight: 600; }
 
     .standing-bar { 
         background: #fff; padding: 15px 25px; border: 1px solid #e2e8f0; border-radius: 12px; 
@@ -190,17 +192,25 @@ if($selectedDivision !== 'all') $scopeLabel .= " : " . $selectedDivision;
         border: 1px solid #f1f5f9; box-shadow: 0 2px 4px rgba(0,0,0,0.02);
         display: flex; flex-direction: column;
     }
-    .chart-card h4 { font-size: 10px; text-align: center; color: #1e3a5f; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .chart-card h4 { font-size: 10px; text-align: center; color: #1a365d; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
     .canvas-wrap { height: 130px; width: 100%; position: relative; }
 </style>
 
 <div class="summary-wrapper">
     <div class="sum-header">
         <h3 style="margin:0; font-size: 18px;"><i class="fa fa-chart-pie"></i> <?= summary_h($scopeLabel) ?></h3>
-        <a href="index.php?page=home" style="color:white; text-decoration:none; font-size:12px; background:rgba(255,255,255,0.2); padding:6px 15px; border-radius:8px; font-weight:bold; transition: 0.2s;">BACK</a>
+        
+        <div class="controls-wrapper">
+            <select class="quarter-select" onchange="switchQuarter(this.value)">
+                <option value="Q1" <?= $selectedQuarter === 'Q1' ? 'selected' : '' ?>>Quarter 1 (Q1)</option>
+                <option value="Q2" <?= $selectedQuarter === 'Q2' ? 'selected' : '' ?>>Quarter 2 (Q2)</option>
+                <option value="Q3" <?= $selectedQuarter === 'Q3' ? 'selected' : '' ?>>Quarter 3 (Q3)</option>
+                <option value="Q4" <?= $selectedQuarter === 'Q4' ? 'selected' : '' ?>>Quarter 4 (Q4)</option>
+            </select>
+            <a href="index.php?page=home" style="color:white; text-decoration:none; font-size:12px; background:rgba(255,255,255,0.2); padding:6px 15px; border-radius:8px; font-weight:bold;">BACK</a>
+        </div>
     </div>
 
-    <!-- Top KPI Row -->
     <div class="kpi-grid">
         <div class="kpi-card">
             <i class="fa fa-briefcase"></i>
@@ -208,54 +218,51 @@ if($selectedDivision !== 'all') $scopeLabel .= " : " . $selectedDivision;
         </div>
         <div class="kpi-card" style="border-left-color: #f59e0b;">
             <i class="fa fa-coins" style="color:#f59e0b;"></i>
-            <div><small>Q1 Actual Exp</small><h2><?= number_format($agg['q1_fin_actual'], 1) ?>M</h2></div>
+            <div><small><?= $selectedQuarter ?> Phy Actual Exp</small><h2><?= number_format($agg['fin_actual'], 1) ?>M</h2></div>
         </div>
         <div class="kpi-card" style="border-left-color: #10b981;">
             <i class="fa fa-chart-line" style="color:#10b981;"></i>
-            <div><small>Q1 Phys. Avg</small><h2><?= number_format($avg_q1_phys, 1) ?>%</h2></div>
+            <div><small><?= $selectedQuarter ?> Phys. Avg</small><h2><?= number_format($avg_quarter_phys, 1) ?>%</h2></div>
         </div>
     </div>
 
-    <!-- Performance Details Matrix -->
     <div class="detail-matrix">
         <div class="matrix-box">
             <i class="fa fa-bullseye" style="color:#0ea5e9;"></i>
             <div>
-                <small>Q1 ACTUAL / TARGET</small>
-                <div class="m-val" style="color:#0ea5e9;"><?= number_format($avg_q1_phys, 2) ?>% / <?= number_format($agg['q1_phys_target_sum']/$divisor, 2) ?>%</div>
-                <div class="m-sub">Quarterly Cum: <?= number_format($agg['q1_qly_cum_sum']/$divisor, 2) ?>%</div>
+                <small><?= $selectedQuarter ?> Phy ACTUAL / TARGET</small>
+                <div class="m-val" style="color:#2b6cb0;"><?= number_format($avg_quarter_phys, 2) ?>% / <?= number_format($agg['phys_target_sum']/$divisor, 2) ?>%</div>
+                <div class="m-sub">Quarterly Cum: <?= number_format($agg['qly_cum_sum']/$divisor, 2) ?>%</div>
             </div>
         </div>
         <div class="matrix-box">
             <i class="fa fa-money-bill-wave" style="color:#f59e0b;"></i>
             <div>
-                <small style="color:#f59e0b;">FINANCIAL EXP (Q1)</small>
-                <div class="m-val">Rs. <?= number_format($agg['q1_fin_actual'], 1) ?>M</div>
-                <div class="m-sub">Q1 Target: <?= number_format($agg['q1_fin_target'], 1) ?>M</div>
+                <small style="color:#f59e0b;">FINANCIAL EXP (<?= $selectedQuarter ?>)</small>
+                <div class="m-val">Rs. <?= number_format($agg['fin_actual'], 1) ?>M</div>
+                <div class="m-sub"><?= $selectedQuarter ?> Target: <?= number_format($agg['fin_target'], 1) ?>M</div>
             </div>
         </div>
         <div class="matrix-box">
-            <i class="fa fa-file-invoice-dollar" style="color:#1e3a5f;"></i>
+            <i class="fa fa-file-invoice-dollar" style="color:#1a365d;"></i>
             <div>
-                <small style="color:#1e3a5f;">ALLOCATION 2026</small>
+                <small style="color:#1a365d;">ALLOCATION 2026</small>
                 <div class="m-val">Orig: <?= number_format($agg['alloc_orig'], 0) ?>M</div>
                 <div class="m-sub">Rev: <?= number_format($agg['alloc_rev'], 0) ?>M</div>
             </div>
         </div>
     </div>
 
-    <!-- Overall Standing Bar -->
     <div class="standing-bar">
         <div style="display:flex; align-items:center; gap:12px;">
-            <i class="fa fa-award" style="font-size:22px; color:#1e3a5f;"></i>
-            <small style="font-weight:800; color:#1e3a5f; font-size:10px; text-transform:uppercase;">Overall Standing</small>
+            <i class="fa fa-award" style="font-size:22px; color:#1a365d;"></i>
+            <small style="font-weight:800; color:#1a365d; font-size:10px; text-transform:uppercase;">Overall Standing (<?= $selectedQuarter ?>)</small>
         </div>
-        <div class="m-val" style="font-size:18px; margin:0;">Achievement: <?= number_format($agg['q1_overall_achieve_sum']/$divisor, 1) ?>%</div>
-        <div class="m-sub" style="font-weight:800; color:#1e3a5f;"><i class="fa fa-crosshairs"></i> TARGET: <?= number_format($agg['q1_overall_target_sum']/$divisor, 2) ?>%</div>
-        <div class="m-sub"><i class="fa fa-tasks"></i> Phys: <?= number_format($agg['q1_cum_phys_sum']/$divisor, 2) ?>%</div>
+        <div class="m-val" style="font-size:18px; margin:0;">Achievement: <?= number_format($agg['overall_achieve_sum']/$divisor, 1) ?>%</div>
+        <div class="m-sub" style="font-weight:800; color:#1a365d;"><i class="fa fa-crosshairs"></i> TARGET: <?= number_format($agg['overall_target_sum']/$divisor, 2) ?>%</div>
+        <div class="m-sub"><i class="fa fa-tasks"></i> Phys Avg: <?= number_format($agg['cum_phys_sum']/$divisor, 2) ?>%</div>
     </div>
 
-    <!-- Chart Row -->
     <div class="chart-container-row">
         <div class="chart-card">
             <h4>Progress Trend</h4>
@@ -289,6 +296,12 @@ if($selectedDivision !== 'all') $scopeLabel .= " : " . $selectedDivision;
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+function switchQuarter(quarter) {
+    const urlParams = new URLSearchParams(window.location.search);
+    urlParams.set('quarter', quarter);
+    window.location.search = urlParams.toString();
+}
+
 (function() {
     const commonOpts = { 
         maintainAspectRatio: false, 
@@ -301,20 +314,20 @@ if($selectedDivision !== 'all') $scopeLabel .= " : " . $selectedDivision;
 
     new Chart(document.getElementById('trendChart'), {
         type: 'line',
-        data: { labels: ['Tgt', 'Act'], datasets: [{ data: [<?= $agg['q1_phys_target_sum']/$divisor ?>, <?= $avg_q1_phys ?>], borderColor: '#0ea5e9', borderWidth: 2, pointRadius: 4, fill: true, backgroundColor: 'rgba(14, 165, 233, 0.05)' }] },
+        data: { labels: ['Tgt', 'Act'], datasets: [{ data: [<?= $agg['phys_target_sum']/$divisor ?>, <?= $avg_quarter_phys ?>], borderColor: '#0ea5e9', borderWidth: 2, pointRadius: 4, fill: true, backgroundColor: 'rgba(14, 165, 233, 0.05)' }] },
         options: commonOpts
     });
 
     new Chart(document.getElementById('sourceChart'), {
         type: 'doughnut',
-        data: { labels: ['CAASL', 'AASL', 'SLPA', 'Gov'], datasets: [{ data: <?= json_encode(array_values($fundingSources)) ?>, backgroundColor: ['#1e3a5f', '#10b981', '#f59e0b', '#cbd5e1'], borderWidth: 1 }] },
+        data: { labels: ['CAASL', 'AASL', 'SLPA', 'Gov'], datasets: [{ data: <?= json_encode(array_values($fundingSources)) ?>, backgroundColor: ['#1a365d', '#10b981', '#f59e0b', '#cbd5e1'], borderWidth: 1 }] },
         options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 8 } } } }, cutout: '65%' }
     });
 
     <?php if ($isGlobal || $isPorts): ?>
     new Chart(document.getElementById('portsChart'), {
         type: 'bar',
-        data: { labels: ['SLPA', 'MSS', 'CSC'], datasets: [{ data: <?= json_encode(array_values($portsAlloc)) ?>, backgroundColor: '#1e3a5f', borderRadius: 4 }] },
+        data: { labels: ['SLPA', 'MSS', 'CSC'], datasets: [{ data: <?= json_encode(array_values($portsAlloc)) ?>, backgroundColor: '#1a365d', borderRadius: 4 }] },
         options: commonOpts
     });
     <?php endif; ?>
@@ -329,7 +342,7 @@ if($selectedDivision !== 'all') $scopeLabel .= " : " . $selectedDivision;
 
     new Chart(document.getElementById('finChart'), {
         type: 'pie',
-        data: { labels: ['Spent', 'Rem'], datasets: [{ data: [<?= $agg['q1_fin_actual'] ?>, <?= max(0, $agg['q1_fin_target'] - $agg['q1_fin_actual']) ?>], backgroundColor: ['#f59e0b', '#f1f5f9'], borderWidth: 1 }] },
+        data: { labels: ['Spent', 'Rem'], datasets: [{ data: [<?= $agg['fin_actual'] ?>, <?= max(0, $agg['fin_target'] - $agg['fin_actual']) ?>], backgroundColor: ['#f59e0b', '#f1f5f9'], borderWidth: 1 }] },
         options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 8 } } } } }
     });
 })();
